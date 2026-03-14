@@ -5,6 +5,7 @@ import { Clock, Gift, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { AssetType, type UserProfile } from "../backend";
+import AssetDetailSheet from "../components/AssetDetailSheet";
 import TradeModal from "../components/TradeModal";
 import { useCurrency } from "../hooks/useCurrency";
 import { type MarketAsset, useMarketData } from "../hooks/useMarketData";
@@ -21,9 +22,11 @@ function trialDaysLeft(profile: UserProfile): number {
 function AssetCard({
   asset,
   onTrade,
+  onChat,
 }: {
   asset: MarketAsset;
   onTrade: (asset: MarketAsset, side: "buy" | "sell") => void;
+  onChat: (asset: MarketAsset) => void;
 }) {
   const { format } = useCurrency();
   const isUp = asset.price >= asset.prevPrice;
@@ -32,7 +35,8 @@ function AssetCard({
   return (
     <motion.div
       layout
-      className={`asset-card p-4 cursor-default ${
+      onClick={() => onChat(asset)}
+      className={`asset-card p-4 cursor-pointer hover:border-primary/40 transition-colors ${
         changed ? (isUp ? "asset-card-up" : "asset-card-down") : ""
       }`}
     >
@@ -56,7 +60,10 @@ function AssetCard({
           type="button"
           data-ocid="dashboard.asset.primary_button"
           className="trade-btn-buy flex-1 py-1.5 text-xs font-semibold rounded"
-          onClick={() => onTrade(asset, "buy")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTrade(asset, "buy");
+          }}
         >
           BUY
         </button>
@@ -64,7 +71,10 @@ function AssetCard({
           type="button"
           data-ocid="dashboard.asset.secondary_button"
           className="trade-btn-sell flex-1 py-1.5 text-xs font-semibold rounded"
-          onClick={() => onTrade(asset, "sell")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTrade(asset, "sell");
+          }}
         >
           SELL
         </button>
@@ -77,10 +87,12 @@ function AssetGrid({
   assets,
   total,
   onTrade,
+  onChat,
 }: {
   assets: MarketAsset[];
   total: number;
   onTrade: (a: MarketAsset, s: "buy" | "sell") => void;
+  onChat: (a: MarketAsset) => void;
 }) {
   if (assets.length === 0) {
     return (
@@ -111,7 +123,7 @@ function AssetGrid({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(i * 0.03, 0.5) }}
           >
-            <AssetCard asset={a} onTrade={onTrade} />
+            <AssetCard asset={a} onTrade={onTrade} onChat={onChat} />
           </motion.div>
         ))}
       </div>
@@ -131,6 +143,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   } | null>(null);
   const [activeTab, setActiveTab] = useState("crypto");
   const [searchQuery, setSearchQuery] = useState("");
+  const [chatAsset, setChatAsset] = useState<MarketAsset | null>(null);
 
   const days = trialDaysLeft(profile);
   const tradeCount = tradeHistory.length;
@@ -163,6 +176,11 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const handleTrade = (asset: MarketAsset, side: "buy" | "sell") => {
     setTradeTarget({ asset, side });
   };
+
+  // live version of the asset currently shown in the detail sheet
+  const liveAsset = chatAsset
+    ? (assets.find((a) => a.name === chatAsset.name) ?? chatAsset)
+    : null;
 
   const currentCount =
     activeTab === "crypto"
@@ -292,6 +310,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
             assets={filteredCrypto}
             total={crypto.length}
             onTrade={handleTrade}
+            onChat={setChatAsset}
           />
         </TabsContent>
         <TabsContent value="forex">
@@ -299,6 +318,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
             assets={filteredForex}
             total={forex.length}
             onTrade={handleTrade}
+            onChat={setChatAsset}
           />
         </TabsContent>
         <TabsContent value="stocks">
@@ -306,6 +326,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
             assets={filteredStocks}
             total={stocks.length}
             onTrade={handleTrade}
+            onChat={setChatAsset}
           />
         </TabsContent>
       </Tabs>
@@ -317,6 +338,16 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
         onClose={() => setTradeTarget(null)}
         profile={profile}
         tradeCount={tradeCount}
+      />
+
+      <AssetDetailSheet
+        asset={chatAsset}
+        liveAsset={liveAsset}
+        onClose={() => setChatAsset(null)}
+        onTrade={(asset, side) => {
+          setChatAsset(null);
+          handleTrade(asset, side);
+        }}
       />
     </div>
   );
