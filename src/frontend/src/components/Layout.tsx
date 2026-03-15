@@ -5,14 +5,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ArrowLeftRight,
   ChevronDown,
   History,
   LayoutDashboard,
   LogOut,
   PieChart,
+  ShieldAlert,
   User,
+  Wallet,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type { Page } from "../App";
 import type { UserProfile } from "../backend";
 import { type Currency, useCurrency } from "../hooks/useCurrency";
@@ -26,6 +30,8 @@ const NAV_ITEMS: {
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { page: "portfolio", label: "Portfolio", icon: PieChart },
   { page: "history", label: "History", icon: History },
+  { page: "wallet", label: "Wallet", icon: Wallet },
+  { page: "converter", label: "Converter", icon: ArrowLeftRight },
   { page: "profile", label: "Profile", icon: User },
 ];
 
@@ -36,24 +42,55 @@ interface LayoutProps {
   setPage: (p: Page) => void;
   profile: UserProfile;
   children: ReactNode;
+  onLogout?: () => void;
 }
 
-export default function Layout({ page, setPage, children }: LayoutProps) {
+export default function Layout({
+  page,
+  setPage,
+  children,
+  onLogout,
+}: LayoutProps) {
   const { clear } = useInternetIdentity();
   const { currency, setCurrency } = useCurrency();
+
+  // Triple-tap on logo to show admin link
+  const [tapCount, setTapCount] = useState(0);
+  const [lastTapTime, setLastTapTime] = useState(0);
+  const [adminVisible, setAdminVisible] = useState(false);
+
+  function handleLogoTap() {
+    const now = Date.now();
+    const newCount = now - lastTapTime < 1000 ? tapCount + 1 : 1;
+    setTapCount(newCount);
+    setLastTapTime(now);
+    if (newCount >= 3) {
+      setAdminVisible(true);
+      setTapCount(0);
+    }
+  }
+
+  function handleLogout() {
+    onLogout?.();
+    clear();
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar - desktop */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-sidebar-border bg-sidebar fixed inset-y-0 left-0 z-30">
-        {/* Logo */}
-        <div className="px-4 py-5 border-b border-sidebar-border">
+        {/* Logo -- triple tap to reveal admin */}
+        <button
+          type="button"
+          className="px-4 py-5 border-b border-sidebar-border cursor-pointer select-none text-left"
+          onClick={handleLogoTap}
+        >
           <img
-            src="/assets/generated/cfs-logo-transparent.dim_320x120.png"
+            src="/assets/uploads/image_9e2fa18e-1.png"
             alt="CFS"
-            className="h-8 w-auto"
+            className="h-10 w-auto"
           />
-        </div>
+        </button>
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1">
@@ -73,6 +110,20 @@ export default function Layout({ page, setPage, children }: LayoutProps) {
 
         {/* Bottom */}
         <div className="px-3 py-4 border-t border-sidebar-border space-y-2">
+          {adminVisible && (
+            <button
+              type="button"
+              data-ocid="nav.admin.link"
+              onClick={() => setPage("admin")}
+              className={`sidebar-link text-amber-500/60 hover:text-amber-500 ${
+                page === "admin" ? "active" : ""
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <span className="text-xs">Admin</span>
+            </button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger
               data-ocid="nav.currency.select"
@@ -111,7 +162,7 @@ export default function Layout({ page, setPage, children }: LayoutProps) {
           <button
             type="button"
             data-ocid="nav.logout.button"
-            onClick={clear}
+            onClick={handleLogout}
             className="sidebar-link text-destructive hover:bg-destructive/10"
           >
             <LogOut className="w-4 h-4" />
@@ -124,12 +175,28 @@ export default function Layout({ page, setPage, children }: LayoutProps) {
       <div className="flex-1 md:ml-56 flex flex-col min-h-screen">
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-sidebar sticky top-0 z-20">
-          <img
-            src="/assets/generated/cfs-logo-transparent.dim_320x120.png"
-            alt="CFS"
-            className="h-7"
-          />
+          <button
+            type="button"
+            onClick={handleLogoTap}
+            className="p-0 bg-transparent border-none"
+          >
+            <img
+              src="/assets/uploads/image_9e2fa18e-1.png"
+              alt="CFS"
+              className="h-9 w-auto"
+            />
+          </button>
           <div className="flex items-center gap-2">
+            {adminVisible && (
+              <button
+                type="button"
+                data-ocid="nav.admin.link"
+                onClick={() => setPage("admin")}
+                className="text-amber-500/60 hover:text-amber-500 p-1"
+              >
+                <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger
                 data-ocid="mobile.currency.select"
@@ -171,7 +238,7 @@ export default function Layout({ page, setPage, children }: LayoutProps) {
             }`}
           >
             <item.icon className="w-5 h-5" />
-            {item.label}
+            <span className="text-[10px]">{item.label}</span>
           </button>
         ))}
       </nav>

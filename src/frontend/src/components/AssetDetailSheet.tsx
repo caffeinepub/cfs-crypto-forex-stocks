@@ -1,9 +1,11 @@
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { BarChart2, TrendingDown, TrendingUp, X } from "lucide-react";
+import { BarChart2, Star, TrendingDown, TrendingUp, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { AssetType } from "../backend";
 import { useCurrency } from "../hooks/useCurrency";
+import { useFavorites } from "../hooks/useFavorites";
 import type { MarketAsset } from "../hooks/useMarketData";
+import CandlestickChart from "./CandlestickChart";
 
 const typeLabel: Record<string, string> = {
   [AssetType.crypto as unknown as string]: "Cryptocurrency",
@@ -19,7 +21,7 @@ const typeColor: Record<string, string> = {
 
 interface Props {
   asset: MarketAsset | null;
-  liveAsset: MarketAsset | null; // same asset from live market data
+  liveAsset: MarketAsset | null;
   onClose: () => void;
   onTrade: (asset: MarketAsset, side: "buy" | "sell") => void;
 }
@@ -31,6 +33,7 @@ export default function AssetDetailSheet({
   onTrade,
 }: Props) {
   const { format } = useCurrency();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const open = !!asset;
   const display = liveAsset ?? asset;
 
@@ -38,15 +41,15 @@ export default function AssetDetailSheet({
 
   const isUp = display.change24h >= 0;
   const isFlash = liveAsset && asset && liveAsset.price !== asset.price;
-
   const typeKey = String(display.type);
+  const favorited = isFavorite(display.name);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="bottom"
         data-ocid="asset_detail.sheet"
-        className="p-0 rounded-t-2xl border-border bg-card max-h-[85vh] overflow-auto"
+        className="p-0 rounded-t-2xl border-border bg-card max-h-[92vh] overflow-auto"
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
@@ -68,14 +71,33 @@ export default function AssetDetailSheet({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            data-ocid="asset_detail.close_button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-ocid="asset_detail.toggle"
+              onClick={() => toggleFavorite(display.name)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-muted/50 hover:bg-muted transition-colors"
+              aria-label={
+                favorited ? "Remove from favorites" : "Add to favorites"
+              }
+            >
+              <Star
+                className={`w-4 h-4 transition-colors ${
+                  favorited
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "text-muted-foreground"
+                }`}
+              />
+            </button>
+            <button
+              type="button"
+              data-ocid="asset_detail.close_button"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Chat bubble – price */}
@@ -129,6 +151,9 @@ export default function AssetDetailSheet({
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Candlestick Chart */}
+        <CandlestickChart asset={display} />
 
         {/* Info cards */}
         <div className="px-5 py-3 grid grid-cols-3 gap-2">

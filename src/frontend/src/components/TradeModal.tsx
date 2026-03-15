@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTaxBalance } from "@/hooks/useTaxBalance";
 import { Loader2, TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ export default function TradeModal({
   const [modalCurrency, setModalCurrency] = useState<Currency>(appCurrency);
   const [amountStr, setAmountStr] = useState("");
   const { mutate: placeTrade, isPending } = usePlaceTrade();
+  const { addTax } = useTaxBalance();
 
   if (!asset) return null;
 
@@ -69,7 +71,7 @@ export default function TradeModal({
   const amountUSD = amountNum / rate;
   const isTaxFree =
     profile.isTaxFree || tradeCount < 7 || isTrialActive(profile);
-  const taxRate = isTaxFree ? 0 : 0.001;
+  const taxRate = isTaxFree ? 0 : side === "buy" ? 0.01 : 0.03;
   const taxAmount = amountNum * taxRate;
   const totalAmount = amountNum + taxAmount;
   const quantity = amountUSD / asset.price;
@@ -89,6 +91,8 @@ export default function TradeModal({
       },
       {
         onSuccess: () => {
+          if (!isTaxFree && taxAmount > 0)
+            addTax(taxAmount, side === "buy" ? "buy" : "sell");
           toast.success(
             `${side === "buy" ? "Bought" : "Sold"} ${asset.name} — ${sym}${amountNum.toFixed(2)}`,
           );
@@ -204,7 +208,7 @@ export default function TradeModal({
                 ) : (
                   <span className="font-data text-warning">
                     {sym}
-                    {taxAmount.toFixed(2)} (0.1%)
+                    {taxAmount.toFixed(2)} ({side === "buy" ? "1%" : "3%"})
                   </span>
                 )}
               </div>

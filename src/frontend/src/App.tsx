@@ -1,22 +1,34 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KYCStatus } from "./backend";
 import type { UserProfile } from "./backend";
+import AppLockScreen from "./components/AppLockScreen";
 import Layout from "./components/Layout";
 import { useActor } from "./hooks/useActor";
 import { CurrencyProvider } from "./hooks/useCurrency";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { MarketDataProvider } from "./hooks/useMarketData";
 import { useCallerProfile } from "./hooks/useQueries";
+import AdminPage from "./pages/AdminPage";
+import CurrencyConverterPage from "./pages/CurrencyConverterPage";
 import DashboardPage from "./pages/DashboardPage";
 import HistoryPage from "./pages/HistoryPage";
 import LandingPage from "./pages/LandingPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterPage from "./pages/RegisterPage";
+import WalletPage from "./pages/WalletPage";
+import { recordSessionEnd, recordSessionStart } from "./utils/sessionTracker";
 
-export type Page = "dashboard" | "portfolio" | "history" | "profile";
+export type Page =
+  | "dashboard"
+  | "portfolio"
+  | "history"
+  | "profile"
+  | "wallet"
+  | "converter"
+  | "admin";
 
 function LoadingScreen({ message }: { message?: string }) {
   return (
@@ -75,6 +87,19 @@ function AppInner() {
   const { isFetching: actorFetching } = useActor();
   const { data: profile, isPending: profilePending } = useCallerProfile();
   const [page, setPage] = useState<Page>("dashboard");
+  const [unlocked, setUnlocked] = useState(false);
+
+  // Record session end when user closes the tab
+  useEffect(() => {
+    if (!unlocked || !profile) return;
+    const handleUnload = () => {
+      recordSessionEnd(profile.name);
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [unlocked, profile]);
 
   if (isInitializing) return <LoadingScreen message="Initializing CFS..." />;
   if (!identity) return <LandingPage />;
@@ -84,14 +109,39 @@ function AppInner() {
   if (profile.kycStatus === KYCStatus.banned)
     return <BanScreen profile={profile} />;
 
+  // Security lock screen -- shown after login until PIN/fingerprint verified
+  if (!unlocked) {
+    return (
+      <AppLockScreen
+        userId={profile.name}
+        onUnlocked={() => {
+          recordSessionStart(profile.name);
+          setUnlocked(true);
+        }}
+      />
+    );
+  }
+
+  function handleLogout() {
+    recordSessionEnd(profile!.name);
+  }
+
   return (
-    <Layout page={page} setPage={setPage} profile={profile}>
+    <Layout
+      page={page}
+      setPage={setPage}
+      profile={profile}
+      onLogout={handleLogout}
+    >
       {page === "dashboard" && <DashboardPage profile={profile} />}
       {page === "portfolio" && <PortfolioPage profile={profile} />}
       {page === "history" && <HistoryPage />}
       {page === "profile" && (
         <ProfilePage profile={profile} setPage={setPage} />
       )}
+      {page === "wallet" && <WalletPage />}
+      {page === "converter" && <CurrencyConverterPage />}
+      {page === "admin" && <AdminPage />}
     </Layout>
   );
 }

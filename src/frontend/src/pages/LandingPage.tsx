@@ -69,9 +69,9 @@ export default function LandingPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border/50">
         <img
-          src="/assets/generated/cfs-logo-transparent.dim_320x120.png"
+          src="/assets/uploads/image_9e2fa18e-1.png"
           alt="CFS"
-          className="h-8 w-auto"
+          className="h-10 w-auto"
         />
         <Button
           data-ocid="nav.primary_button"

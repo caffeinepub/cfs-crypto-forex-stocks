@@ -1,15 +1,41 @@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Gift, Search, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  Clock,
+  Gift,
+  IndianRupee,
+  Search,
+  Star,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { AssetType, type UserProfile } from "../backend";
 import AssetDetailSheet from "../components/AssetDetailSheet";
 import TradeModal from "../components/TradeModal";
 import { useCurrency } from "../hooks/useCurrency";
+import { useFavorites } from "../hooks/useFavorites";
 import { type MarketAsset, useMarketData } from "../hooks/useMarketData";
 import { usePortfolio, useTradeHistory } from "../hooks/useQueries";
+
+const INR_RATE = 83;
+
+const typeShortLabel: Record<string, string> = {
+  [AssetType.crypto as unknown as string]: "Crypto",
+  [AssetType.forex as unknown as string]: "Forex",
+  [AssetType.stock as unknown as string]: "Stock",
+};
+
+const typeBadgeStyle: Record<string, string> = {
+  [AssetType.crypto as unknown as string]:
+    "bg-[oklch(0.78_0.14_198)]/15 text-[oklch(0.78_0.14_198)]",
+  [AssetType.forex as unknown as string]:
+    "bg-[oklch(0.8_0.17_75)]/15 text-[oklch(0.8_0.17_75)]",
+  [AssetType.stock as unknown as string]:
+    "bg-[oklch(0.72_0.22_145)]/15 text-[oklch(0.72_0.22_145)]",
+};
 
 function trialDaysLeft(profile: UserProfile): number {
   const nowNs = BigInt(Date.now()) * BigInt(1_000_000);
@@ -23,34 +49,70 @@ function AssetCard({
   asset,
   onTrade,
   onChat,
+  showTypeBadge,
 }: {
   asset: MarketAsset;
   onTrade: (asset: MarketAsset, side: "buy" | "sell") => void;
   onChat: (asset: MarketAsset) => void;
+  showTypeBadge?: boolean;
 }) {
   const { format } = useCurrency();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const isUp = asset.price >= asset.prevPrice;
   const changed = asset.price !== asset.prevPrice;
+  const favorited = isFavorite(asset.name);
+  const typeKey = String(asset.type);
 
   return (
     <motion.div
       layout
       onClick={() => onChat(asset)}
-      className={`asset-card p-4 cursor-pointer hover:border-primary/40 transition-colors ${
+      className={`asset-card p-4 cursor-pointer hover:border-primary/40 transition-colors relative ${
         changed ? (isUp ? "asset-card-up" : "asset-card-down") : ""
       }`}
     >
+      {showTypeBadge && (
+        <span
+          className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+            typeBadgeStyle[typeKey] ?? "bg-muted text-muted-foreground"
+          }`}
+        >
+          {typeShortLabel[typeKey] ?? "Asset"}
+        </span>
+      )}
       <div className="flex items-start justify-between mb-3">
-        <div>
+        <div className={showTypeBadge ? "mt-4" : ""}>
           <p className="font-bold text-sm leading-tight">{asset.name}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {asset.displayLabel}
           </p>
         </div>
-        <span className={asset.change24h >= 0 ? "badge-gain" : "badge-loss"}>
-          {asset.change24h >= 0 ? "▲" : "▼"}
-          {Math.abs(asset.change24h).toFixed(2)}%
-        </span>
+        <div className="flex items-center gap-1">
+          <span className={asset.change24h >= 0 ? "badge-gain" : "badge-loss"}>
+            {asset.change24h >= 0 ? "▲" : "▼"}
+            {Math.abs(asset.change24h).toFixed(2)}%
+          </span>
+          <button
+            type="button"
+            data-ocid="dashboard.asset.toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(asset.name);
+            }}
+            className="ml-1 p-1 rounded-full hover:bg-muted/50 transition-colors"
+            aria-label={
+              favorited ? "Remove from favorites" : "Add to favorites"
+            }
+          >
+            <Star
+              className={`w-3.5 h-3.5 transition-colors ${
+                favorited
+                  ? "fill-yellow-400 text-yellow-400"
+                  : "text-muted-foreground"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <p className="text-lg font-bold font-data mb-3">{format(asset.price)}</p>
@@ -88,13 +150,31 @@ function AssetGrid({
   total,
   onTrade,
   onChat,
+  showTypeBadge,
+  emptyMessage,
 }: {
   assets: MarketAsset[];
   total: number;
   onTrade: (a: MarketAsset, s: "buy" | "sell") => void;
   onChat: (a: MarketAsset) => void;
+  showTypeBadge?: boolean;
+  emptyMessage?: { icon: React.ReactNode; title: string; subtitle: string };
 }) {
   if (assets.length === 0) {
+    if (emptyMessage) {
+      return (
+        <div
+          data-ocid="dashboard.empty_state"
+          className="py-16 text-center text-muted-foreground"
+        >
+          <div className="flex justify-center mb-3 opacity-30">
+            {emptyMessage.icon}
+          </div>
+          <p className="font-medium">{emptyMessage.title}</p>
+          <p className="text-xs mt-1">{emptyMessage.subtitle}</p>
+        </div>
+      );
+    }
     return (
       <div
         data-ocid="dashboard.empty_state"
@@ -123,7 +203,12 @@ function AssetGrid({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(i * 0.03, 0.5) }}
           >
-            <AssetCard asset={a} onTrade={onTrade} onChat={onChat} />
+            <AssetCard
+              asset={a}
+              onTrade={onTrade}
+              onChat={onChat}
+              showTypeBadge={showTypeBadge}
+            />
           </motion.div>
         ))}
       </div>
@@ -136,6 +221,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const { format } = useCurrency();
   const { data: tradeHistory = [] } = useTradeHistory();
   const { data: portfolio } = usePortfolio();
+  const { isFavorite, favoritesCount } = useFavorites();
 
   const [tradeTarget, setTradeTarget] = useState<{
     asset: MarketAsset;
@@ -144,6 +230,7 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const [activeTab, setActiveTab] = useState("crypto");
   const [searchQuery, setSearchQuery] = useState("");
   const [chatAsset, setChatAsset] = useState<MarketAsset | null>(null);
+  const [showRangeFilter, setShowRangeFilter] = useState(false);
 
   const days = trialDaysLeft(profile);
   const tradeCount = tradeHistory.length;
@@ -153,20 +240,35 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const crypto = assets.filter((a) => a.type === AssetType.crypto);
   const forex = assets.filter((a) => a.type === AssetType.forex);
   const stocks = assets.filter((a) => a.type === AssetType.stock);
+  const favoriteAssets = assets.filter((a) => isFavorite(a.name));
 
   const q = searchQuery.toLowerCase().trim();
-  const filter = (list: MarketAsset[]) =>
-    q
-      ? list.filter(
-          (a) =>
-            a.name.toLowerCase().includes(q) ||
-            a.displayLabel.toLowerCase().includes(q),
-        )
-      : list;
+
+  const inRange = (a: MarketAsset) => {
+    const inrPrice = a.type === AssetType.stock ? a.price : a.price * INR_RATE;
+    return inrPrice >= 10 && inrPrice <= 50;
+  };
+
+  const filter = (list: MarketAsset[]) => {
+    let result = list;
+    if (q) {
+      result = result.filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          a.displayLabel.toLowerCase().includes(q),
+      );
+    }
+    if (showRangeFilter) {
+      result = result.filter(inRange);
+    }
+    return result;
+  };
 
   const filteredCrypto = filter(crypto);
   const filteredForex = filter(forex);
   const filteredStocks = filter(stocks);
+  const filteredFavorites =
+    activeTab === "favorites" ? filter(favoriteAssets) : favoriteAssets;
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -177,7 +279,6 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
     setTradeTarget({ asset, side });
   };
 
-  // live version of the asset currently shown in the detail sheet
   const liveAsset = chatAsset
     ? (assets.find((a) => a.name === chatAsset.name) ?? chatAsset)
     : null;
@@ -187,14 +288,18 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
       ? filteredCrypto.length
       : activeTab === "forex"
         ? filteredForex.length
-        : filteredStocks.length;
+        : activeTab === "stocks"
+          ? filteredStocks.length
+          : filteredFavorites.length;
 
   const currentTotal =
     activeTab === "crypto"
       ? crypto.length
       : activeTab === "forex"
         ? forex.length
-        : stocks.length;
+        : activeTab === "stocks"
+          ? stocks.length
+          : favoriteAssets.length;
 
   return (
     <div className="min-h-full">
@@ -268,40 +373,85 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
                 ({stocks.length})
               </span>
             </TabsTrigger>
+            <TabsTrigger value="favorites" className="gap-1.5">
+              <Star className="w-3.5 h-3.5" /> Favorites
+              {favoritesCount > 0 && (
+                <span className="ml-1 text-[10px] opacity-60">
+                  ({favoritesCount})
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <Input
-              data-ocid="dashboard.search_input"
-              type="text"
-              placeholder={`Search ${activeTab === "crypto" ? "coins" : activeTab === "forex" ? "forex pairs" : "stocks"}...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-card border-border text-sm h-9"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors text-xs"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          {activeTab !== "favorites" && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  data-ocid="dashboard.search_input"
+                  type="text"
+                  placeholder={`Search ${activeTab === "crypto" ? "coins" : activeTab === "forex" ? "forex pairs" : "stocks"}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-card border-border text-sm h-9"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
 
-          {searchQuery && (
-            <p className="text-xs text-muted-foreground pb-1">
-              Showing{" "}
-              <span className="text-primary font-semibold">{currentCount}</span>{" "}
-              of <span className="font-semibold">{currentTotal}</span>{" "}
-              {activeTab === "crypto"
-                ? "coins"
-                : activeTab === "forex"
-                  ? "forex pairs"
-                  : "stocks"}
-            </p>
+              {/* ₹10–₹50 Range Filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  data-ocid="dashboard.under50.toggle"
+                  onClick={() => setShowRangeFilter((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    showRangeFilter
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/30"
+                      : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-primary"
+                  }`}
+                >
+                  <IndianRupee className="w-3 h-3" />
+                  ₹10 – ₹50 Range
+                  {showRangeFilter && (
+                    <span className="ml-0.5 bg-primary-foreground/20 rounded-full w-3.5 h-3.5 inline-flex items-center justify-center text-[9px]">
+                      ✓
+                    </span>
+                  )}
+                </button>
+                {showRangeFilter && (
+                  <span className="text-xs text-muted-foreground">
+                    Showing{" "}
+                    <span className="text-primary font-semibold">
+                      {currentCount}
+                    </span>{" "}
+                    assets in ₹10–₹50 range
+                  </span>
+                )}
+              </div>
+
+              {!showRangeFilter && searchQuery && (
+                <p className="text-xs text-muted-foreground pb-1">
+                  Showing{" "}
+                  <span className="text-primary font-semibold">
+                    {currentCount}
+                  </span>{" "}
+                  of <span className="font-semibold">{currentTotal}</span>{" "}
+                  {activeTab === "crypto"
+                    ? "coins"
+                    : activeTab === "forex"
+                      ? "forex pairs"
+                      : "stocks"}
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -327,6 +477,20 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
             total={stocks.length}
             onTrade={handleTrade}
             onChat={setChatAsset}
+          />
+        </TabsContent>
+        <TabsContent value="favorites">
+          <AssetGrid
+            assets={filteredFavorites}
+            total={favoriteAssets.length}
+            onTrade={handleTrade}
+            onChat={setChatAsset}
+            showTypeBadge
+            emptyMessage={{
+              icon: <Star className="w-10 h-10" />,
+              title: "No favorites yet",
+              subtitle: "Tap the ★ on any asset to save it here",
+            }}
           />
         </TabsContent>
       </Tabs>
