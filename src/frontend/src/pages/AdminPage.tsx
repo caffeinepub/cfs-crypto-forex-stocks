@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -8,8 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useQuery } from "@tanstack/react-query";
 import {
+  CheckCircle2,
+  CreditCard,
   Delete,
+  Loader2,
   Monitor,
   ShieldAlert,
   Smartphone,
@@ -17,7 +24,8 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useActor } from "../hooks/useActor";
 import {
   type SessionLog,
   clearSessionLogs,
@@ -64,6 +72,139 @@ function SummaryCard({
       </div>
       <div className="text-xs text-muted-foreground">{label}</div>
     </div>
+  );
+}
+
+function StripeConfigSection() {
+  const { actor, isFetching } = useActor();
+  const [secretKey, setSecretKey] = useState("");
+  const [countries, setCountries] = useState("IN,US,GB,AE");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [reconfigure, setReconfigure] = useState(false);
+
+  const { data: isConfigured, refetch } = useQuery({
+    queryKey: ["stripeConfigured"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isStripeConfigured();
+    },
+    enabled: !!actor && !isFetching,
+  });
+
+  const handleSave = async () => {
+    if (!actor || !secretKey.trim()) return;
+    setSaving(true);
+    try {
+      const allowedCountries = countries
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      await actor.setStripeConfiguration({
+        secretKey: secretKey.trim(),
+        allowedCountries,
+      });
+      setSaved(true);
+      setReconfigure(false);
+      setSecretKey("");
+      refetch();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // showForm computed inline below
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-primary" />
+          Stripe Payment Setup
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isConfigured && !reconfigure ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+              <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+              <span className="text-sm text-green-400 font-medium">
+                Stripe is configured and active
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReconfigure(true)}
+              data-ocid="admin.stripe_save.button"
+            >
+              Reconfigure
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {saved && (
+              <div className="text-xs text-green-400 font-medium">
+                ✓ Configuration saved!
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                Stripe Secret Key
+              </Label>
+              <Input
+                data-ocid="admin.stripe_key.input"
+                type="password"
+                placeholder="sk_live_... or sk_test_..."
+                value={secretKey}
+                onChange={(e) => setSecretKey(e.target.value)}
+                className="bg-muted/30 border-border font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                Allowed Countries (comma-separated)
+              </Label>
+              <Input
+                type="text"
+                placeholder="IN,US,GB,AE"
+                value={countries}
+                onChange={(e) => setCountries(e.target.value)}
+                className="bg-muted/30 border-border font-mono text-xs"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                data-ocid="admin.stripe_save.button"
+                disabled={saving || !secretKey.trim()}
+                onClick={handleSave}
+                size="sm"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Configuration"
+                )}
+              </Button>
+              {reconfigure && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReconfigure(false)}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -390,6 +531,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Stripe Configuration */}
+        <StripeConfigSection />
 
         {/* Disclaimer */}
         <p className="text-center text-xs text-muted-foreground pb-4">

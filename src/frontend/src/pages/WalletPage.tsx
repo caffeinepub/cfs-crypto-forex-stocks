@@ -11,20 +11,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTaxBalance } from "@/hooks/useTaxBalance";
+import { type TaxTransaction, useTaxBalance } from "@/hooks/useTaxBalance";
 import {
   AlertCircle,
   ArrowRightLeft,
+  Bitcoin,
+  Building,
   Building2,
   CheckCircle2,
   Clock,
+  Copy,
   CreditCard,
   Globe,
+  History,
   Loader2,
   Lock,
   Receipt,
   Repeat,
   ShieldAlert,
+  Smartphone,
   TrendingUp,
   Wallet,
   X,
@@ -32,6 +37,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { AssetType, Variant_buy_sell } from "../backend";
+import { useCreateCheckoutSession } from "../hooks/useCheckout";
 import { useCurrency } from "../hooks/useCurrency";
 import { useMarketData } from "../hooks/useMarketData";
 import { usePlaceTrade, usePortfolio } from "../hooks/useQueries";
@@ -1448,7 +1454,12 @@ function WithdrawTab() {
     setTimeout(() => {
       setLoading(false);
       setRefNo(generateRef());
-      addTax(withdrawTaxAmt, "withdraw");
+      addTax(
+        withdrawTaxAmt,
+        "withdraw",
+        "Bank Withdrawal",
+        Number(withdrawAmount),
+      );
       setSubmitted(true);
     }, 1400);
   };
@@ -1859,9 +1870,18 @@ function WalletTaxBadge() {
 }
 
 function TaxAccountTab() {
-  const { taxBalance, buyCount, sellCount, withdrawCount, clearTax } =
-    useTaxBalance();
+  const {
+    taxBalance,
+    buyCount,
+    sellCount,
+    withdrawCount,
+    taxHistory,
+    clearTax,
+  } = useTaxBalance();
   const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "buy" | "sell" | "withdraw"
+  >("all");
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
@@ -2008,6 +2028,131 @@ function TaxAccountTab() {
         </CardContent>
       </Card>
 
+      {/* Transaction History */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="w-4 h-4 text-amber-400" />
+            Transaction History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Filter Pills */}
+          <div className="flex gap-2 flex-wrap">
+            {(["all", "buy", "sell", "withdraw"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                data-ocid="wallet.tax_history_filter.tab"
+                onClick={() => setHistoryFilter(f)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  historyFilter === f
+                    ? "bg-amber-500 text-black"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {f === "all"
+                  ? "All"
+                  : f === "buy"
+                    ? "Buy"
+                    : f === "sell"
+                      ? "Sell"
+                      : "Withdraw"}
+              </button>
+            ))}
+          </div>
+          {/* History List */}
+          {(() => {
+            const filtered: TaxTransaction[] =
+              historyFilter === "all"
+                ? taxHistory
+                : taxHistory.filter((tx) => tx.type === historyFilter);
+            if (filtered.length === 0) {
+              return (
+                <div
+                  data-ocid="wallet.tax_history.list"
+                  className="py-6 text-center text-muted-foreground text-sm flex flex-col items-center gap-2"
+                >
+                  <History className="w-6 h-6 opacity-40" />
+                  <span>Koi transactions nahi hain abhi</span>
+                </div>
+              );
+            }
+            return (
+              <div
+                data-ocid="wallet.tax_history.list"
+                className="max-h-72 overflow-y-auto space-y-2 pr-1"
+              >
+                {filtered.map((tx) => {
+                  const d = new Date(tx.date);
+                  const dateStr = d.toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  });
+                  const timeStr = d.toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  });
+                  const dotColor =
+                    tx.type === "buy"
+                      ? "bg-green-400"
+                      : tx.type === "sell"
+                        ? "bg-red-400"
+                        : "bg-yellow-400";
+                  const badge =
+                    tx.type === "buy"
+                      ? "BUY 1%"
+                      : tx.type === "sell"
+                        ? "SELL 3%"
+                        : "WITHDRAW 1%";
+                  const badgeColor =
+                    tx.type === "buy"
+                      ? "text-green-400 bg-green-400/10"
+                      : tx.type === "sell"
+                        ? "text-red-400 bg-red-400/10"
+                        : "text-yellow-400 bg-yellow-400/10";
+                  return (
+                    <div
+                      key={tx.id}
+                      className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {tx.asset}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {dateStr}, {timeStr}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <p className="text-xs text-muted-foreground">
+                          ₹{tx.tradeAmount.toFixed(2)}
+                        </p>
+                        <p className="text-xs text-amber-400 font-medium">
+                          Tax: ₹{tx.taxAmount.toFixed(2)}
+                        </p>
+                        <span
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${badgeColor}`}
+                        >
+                          {badge}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
       {/* Disclaimer */}
       <Badge
         variant="outline"
@@ -2031,6 +2176,630 @@ function TaxAccountTab() {
   );
 }
 
+// ── Deposit Tab ───────────────────────────────────────────────────────────────
+function DepositTab() {
+  const [method, setMethod] = useState<"upi" | "bank" | "crypto">("upi");
+
+  // UPI state
+  const [upiId, setUpiId] = useState("");
+  const [upiAmount, setUpiAmount] = useState("");
+  const [upiSuccess, setUpiSuccess] = useState("");
+  const [upiError, setUpiError] = useState("");
+
+  // Bank state
+  const [bankAccount, setBankAccount] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankAmount, setBankAmount] = useState("");
+  const [bankSuccess, setBankSuccess] = useState("");
+  const [bankError, setBankError] = useState("");
+
+  // Crypto state
+  const [cryptoAsset, setCryptoAsset] = useState("BTC");
+  const [cryptoNetwork, setCryptoNetwork] = useState("BEP20");
+  const [copied, setCopied] = useState(false);
+
+  // Stripe state
+  const [stripeAmount, setStripeAmount] = useState("1000");
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeError, setStripeError] = useState("");
+  const { mutateAsync: createCheckoutSession } = useCreateCheckoutSession();
+
+  const handleStripeDeposit = async () => {
+    const amt = Number(stripeAmount);
+    if (!amt || amt <= 0) {
+      setStripeError("Valid amount daalo.");
+      return;
+    }
+    setStripeError("");
+    setStripeLoading(true);
+    try {
+      const session = await createCheckoutSession({
+        items: [
+          {
+            productName: "CFS Wallet Deposit",
+            productDescription: "Add funds to your CFS trading wallet",
+            currency: "inr",
+            priceInCents: BigInt(amt * 100),
+            quantity: BigInt(1),
+          },
+        ],
+        amount: amt,
+      });
+      window.location.href = session.url;
+    } catch (err) {
+      setStripeError("Payment initiate nahi ho saka. Try again.");
+      console.error(err);
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  const cryptoAssets = [
+    "BTC",
+    "ETH",
+    "BNB",
+    "USDT",
+    "SOL",
+    "XRP",
+    "ADA",
+    "DOGE",
+    "TRX",
+    "MATIC",
+  ];
+  const networks: Record<string, string[]> = {
+    BTC: ["Bitcoin", "BEP20"],
+    ETH: ["ERC20", "BEP20"],
+    BNB: ["BEP20"],
+    USDT: ["ERC20", "TRC20", "BEP20"],
+    SOL: ["Solana", "BEP20"],
+    XRP: ["XRPL", "BEP20"],
+    ADA: ["Cardano", "BEP20"],
+    DOGE: ["Dogecoin", "BEP20"],
+    TRX: ["TRC20", "BEP20"],
+    MATIC: ["Polygon", "BEP20"],
+  };
+
+  const mockAddress: Record<string, Record<string, string>> = {
+    BTC: {
+      Bitcoin: "1A1zP1eP5QGefi2DMPTfTL5SLmv7Divf",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    ETH: {
+      ERC20: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    BNB: { BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3" },
+    USDT: {
+      ERC20: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      TRC20: "TN3W4H6rK2ce4vX9YnFQHwKENnHjoxb3m9",
+      BEP20: "0x55d398326f99059fF775485246999027B3197955",
+    },
+    SOL: {
+      Solana: "7EqQdEULxWcraVx3mXKFjc84LhCkMGZzBc7TTnf7YZ7C",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    XRP: {
+      XRPL: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    ADA: {
+      Cardano:
+        "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    DOGE: {
+      Dogecoin: "DH5yaieqoZN36fDVciNyRueRGvGLR3mr7L",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    TRX: {
+      TRC20: "TN3W4H6rK2ce4vX9YnFQHwKENnHjoxb3m9",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+    MATIC: {
+      Polygon: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+      BEP20: "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3",
+    },
+  };
+
+  const availableNetworks = networks[cryptoAsset] || ["BEP20"];
+  const walletAddress =
+    mockAddress[cryptoAsset]?.[cryptoNetwork] ??
+    mockAddress[cryptoAsset]?.[availableNetworks[0]] ??
+    "0x742d35Cc6634C0532925a3b8D4C9E3B7e2F1a2b3";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(walletAddress).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleUpiDeposit = () => {
+    setUpiError("");
+    if (!upiId.trim() || !upiAmount || Number(upiAmount) <= 0) {
+      setUpiError("UPI ID aur valid amount daalo.");
+      return;
+    }
+    const ref = generateRef();
+    const prev = JSON.parse(localStorage.getItem("depositHistory") ?? "[]");
+    prev.push({
+      type: "UPI",
+      upiId,
+      amount: Number(upiAmount),
+      ref,
+      date: new Date().toISOString(),
+    });
+    localStorage.setItem("depositHistory", JSON.stringify(prev));
+    const bal = Number(localStorage.getItem("walletBalance") ?? "10000");
+    localStorage.setItem("walletBalance", String(bal + Number(upiAmount)));
+    setUpiSuccess(ref);
+    setUpiId("");
+    setUpiAmount("");
+  };
+
+  const handleBankDeposit = () => {
+    setBankError("");
+    if (
+      !bankAccount.trim() ||
+      !ifsc.trim() ||
+      !bankName.trim() ||
+      !bankAmount ||
+      Number(bankAmount) <= 0
+    ) {
+      setBankError("Sare fields sahi se bharo.");
+      return;
+    }
+    const ref = generateRef();
+    const prev = JSON.parse(localStorage.getItem("depositHistory") ?? "[]");
+    prev.push({
+      type: "Bank",
+      bankAccount,
+      ifsc,
+      bankName,
+      amount: Number(bankAmount),
+      ref,
+      date: new Date().toISOString(),
+    });
+    localStorage.setItem("depositHistory", JSON.stringify(prev));
+    const bal = Number(localStorage.getItem("walletBalance") ?? "10000");
+    localStorage.setItem("walletBalance", String(bal + Number(bankAmount)));
+    setBankSuccess(ref);
+    setBankAccount("");
+    setIfsc("");
+    setBankName("");
+    setBankAmount("");
+  };
+
+  const methodBtns = [
+    {
+      id: "upi" as const,
+      label: "UPI",
+      icon: <Smartphone className="w-4 h-4" />,
+    },
+    {
+      id: "bank" as const,
+      label: "Bank Transfer",
+      icon: <Building className="w-4 h-4" />,
+    },
+    {
+      id: "crypto" as const,
+      label: "Crypto",
+      icon: <Bitcoin className="w-4 h-4" />,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Method selector */}
+      <div className="flex gap-1 bg-muted/40 rounded-lg p-1">
+        {methodBtns.map((btn) => (
+          <button
+            key={btn.id}
+            type="button"
+            data-ocid={`deposit.${btn.id}.tab`}
+            onClick={() => {
+              setMethod(btn.id);
+              setUpiSuccess("");
+              setBankSuccess("");
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-md font-medium transition-all ${
+              method === btn.id
+                ? "bg-background shadow-sm text-foreground border border-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {btn.icon}
+            <span className="hidden sm:inline">{btn.label}</span>
+            <span className="sm:hidden">{btn.label.split(" ")[0]}</span>
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {method === "upi" && (
+          <motion.div
+            key="upi"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-3"
+          >
+            {upiSuccess ? (
+              <div
+                data-ocid="deposit.upi.success_state"
+                className="flex flex-col items-center gap-3 py-6"
+              >
+                <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-green-400" />
+                </div>
+                <p className="text-green-400 font-semibold">
+                  Deposit Request Sent!
+                </p>
+                <div className="bg-muted/30 rounded-lg px-4 py-2 text-center">
+                  <p className="text-xs text-muted-foreground">
+                    Reference Number
+                  </p>
+                  <p className="font-mono font-bold tracking-widest text-primary">
+                    {upiSuccess}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUpiSuccess("")}
+                >
+                  New Deposit
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    UPI ID
+                  </Label>
+                  <Input
+                    data-ocid="deposit.upi.input"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="yourname@upi"
+                    className="bg-muted/30 border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Amount (₹)
+                  </Label>
+                  <Input
+                    data-ocid="deposit.upi_amount.input"
+                    type="number"
+                    value={upiAmount}
+                    onChange={(e) => setUpiAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="bg-muted/30 border-border"
+                  />
+                  <div className="flex gap-2">
+                    {[100, 500, 1000, 5000].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setUpiAmount(String(v))}
+                        className="flex-1 text-xs py-1.5 rounded bg-muted/40 hover:bg-primary/20 text-muted-foreground hover:text-primary border border-border transition-colors"
+                      >
+                        ₹{v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {upiError && (
+                  <p
+                    data-ocid="deposit.upi.error_state"
+                    className="text-xs text-destructive flex items-center gap-1"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    {upiError}
+                  </p>
+                )}
+                <Button
+                  data-ocid="deposit.upi.primary_button"
+                  onClick={handleUpiDeposit}
+                  className="w-full"
+                >
+                  <Smartphone className="w-4 h-4 mr-2" />
+                  Deposit via UPI
+                </Button>
+              </>
+            )}
+          </motion.div>
+        )}
+
+        {method === "bank" && (
+          <motion.div
+            key="bank"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-3"
+          >
+            {bankSuccess ? (
+              <div
+                data-ocid="deposit.bank.success_state"
+                className="flex flex-col items-center gap-3 py-6"
+              >
+                <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-green-400" />
+                </div>
+                <p className="text-green-400 font-semibold">
+                  Transfer Initiated!
+                </p>
+                <div className="bg-muted/30 rounded-lg px-4 py-2 text-center">
+                  <p className="text-xs text-muted-foreground">
+                    Reference Number
+                  </p>
+                  <p className="font-mono font-bold tracking-widest text-primary">
+                    {bankSuccess}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBankSuccess("")}
+                >
+                  New Deposit
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Bank Name
+                  </Label>
+                  <Input
+                    data-ocid="deposit.bank_name.input"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. SBI, HDFC, ICICI"
+                    className="bg-muted/30 border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Account Number
+                  </Label>
+                  <Input
+                    data-ocid="deposit.bank_account.input"
+                    value={bankAccount}
+                    onChange={(e) => setBankAccount(e.target.value)}
+                    placeholder="Enter account number"
+                    className="bg-muted/30 border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    IFSC Code
+                  </Label>
+                  <Input
+                    data-ocid="deposit.ifsc.input"
+                    value={ifsc}
+                    onChange={(e) => setIfsc(e.target.value)}
+                    placeholder="e.g. SBIN0001234"
+                    className="bg-muted/30 border-border"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Amount (₹)
+                  </Label>
+                  <Input
+                    data-ocid="deposit.bank_amount.input"
+                    type="number"
+                    value={bankAmount}
+                    onChange={(e) => setBankAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="bg-muted/30 border-border"
+                  />
+                  <div className="flex gap-2">
+                    {[500, 1000, 5000, 10000].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setBankAmount(String(v))}
+                        className="flex-1 text-xs py-1.5 rounded bg-muted/40 hover:bg-primary/20 text-muted-foreground hover:text-primary border border-border transition-colors"
+                      >
+                        ₹{v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {bankError && (
+                  <p
+                    data-ocid="deposit.bank.error_state"
+                    className="text-xs text-destructive flex items-center gap-1"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    {bankError}
+                  </p>
+                )}
+                <Button
+                  data-ocid="deposit.bank.primary_button"
+                  onClick={handleBankDeposit}
+                  className="w-full"
+                >
+                  <Building className="w-4 h-4 mr-2" />
+                  Initiate Bank Transfer
+                </Button>
+              </>
+            )}
+          </motion.div>
+        )}
+
+        {method === "crypto" && (
+          <motion.div
+            key="crypto"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-3"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Asset</Label>
+                <Select
+                  value={cryptoAsset}
+                  onValueChange={(v) => {
+                    setCryptoAsset(v);
+                    setCryptoNetwork(networks[v]?.[0] ?? "BEP20");
+                  }}
+                >
+                  <SelectTrigger
+                    data-ocid="deposit.crypto_asset.select"
+                    className="bg-muted/30 border-border"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cryptoAssets.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Network</Label>
+                <Select value={cryptoNetwork} onValueChange={setCryptoNetwork}>
+                  <SelectTrigger
+                    data-ocid="deposit.crypto_network.select"
+                    className="bg-muted/30 border-border"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableNetworks.map((n) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                Deposit Address
+              </Label>
+              <div className="relative bg-muted/20 border border-border rounded-lg p-3">
+                <p className="font-mono text-xs break-all text-foreground/80 pr-8">
+                  {walletAddress}
+                </p>
+                <button
+                  type="button"
+                  data-ocid="deposit.crypto_copy.button"
+                  onClick={handleCopy}
+                  className="absolute right-2 top-2 p-1.5 rounded hover:bg-muted/60 transition-colors"
+                >
+                  {copied ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+              </div>
+              {copied && (
+                <p className="text-xs text-green-400 text-center">
+                  Address copied!
+                </p>
+              )}
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-300">
+                Sirf <span className="font-bold">{cryptoAsset}</span> bhejo is
+                address par ({cryptoNetwork} network). Galat coin ya network se
+                coins permanently lost ho sakte hain.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Stripe Card Deposit */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold">Pay with Card (Stripe)</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[500, 1000, 2000, 5000].map((amt) => (
+            <button
+              key={amt}
+              type="button"
+              onClick={() => setStripeAmount(String(amt))}
+              className={`py-2 rounded-lg text-sm font-mono font-medium border transition-colors ${
+                stripeAmount === String(amt)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted/30 border-border hover:bg-muted/50 text-foreground"
+              }`}
+            >
+              ₹{amt.toLocaleString()}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">
+            Custom Amount (₹)
+          </Label>
+          <Input
+            data-ocid="wallet.stripe_amount.input"
+            type="number"
+            min="1"
+            placeholder="Enter amount"
+            value={stripeAmount}
+            onChange={(e) => setStripeAmount(e.target.value)}
+            className="bg-muted/30 border-border font-mono"
+          />
+        </div>
+        {stripeError && (
+          <p className="text-xs text-destructive">{stripeError}</p>
+        )}
+        <Button
+          data-ocid="wallet.stripe_deposit.button"
+          className="w-full"
+          disabled={stripeLoading || !stripeAmount || Number(stripeAmount) <= 0}
+          onClick={handleStripeDeposit}
+        >
+          {stripeLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Redirecting to Stripe...
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-4 h-4 mr-2" />
+              Pay ₹
+              {Number(stripeAmount) > 0
+                ? Number(stripeAmount).toLocaleString("en-IN")
+                : "---"}{" "}
+              with Card
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Disclaimer */}
+      <div className="bg-muted/20 border border-border rounded-lg p-3 flex items-start gap-2">
+        <ShieldAlert className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+        <p className="text-xs text-muted-foreground">
+          ⚠️ Yeh ek demo app hai. Koi bhi real transaction nahi hoti. Sirf mock
+          data use hota hai.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function WalletPage() {
   const [convertOrderType, setConvertOrderType] = useState("market");
 
@@ -2049,7 +2818,7 @@ export default function WalletPage() {
 
       <div className="px-4 py-4">
         <Tabs defaultValue="convert">
-          <TabsList className="w-full grid grid-cols-3 mb-4">
+          <TabsList className="w-full grid grid-cols-4 mb-4">
             <TabsTrigger value="convert" data-ocid="wallet.convert.tab">
               <ArrowRightLeft className="w-4 h-4 mr-1.5" />
               Convert
@@ -2061,6 +2830,10 @@ export default function WalletPage() {
             <TabsTrigger value="tax" data-ocid="wallet.tax_account.tab">
               <Receipt className="w-4 h-4 mr-1.5" />
               Tax
+            </TabsTrigger>
+            <TabsTrigger value="deposit" data-ocid="wallet.deposit.tab">
+              <CreditCard className="w-4 h-4 mr-1.5" />
+              Deposit
             </TabsTrigger>
           </TabsList>
 
@@ -2164,6 +2937,21 @@ export default function WalletPage() {
           {/* Tax Account Tab */}
           <TabsContent value="tax">
             <TaxAccountTab />
+          </TabsContent>
+
+          {/* Deposit Tab */}
+          <TabsContent value="deposit">
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  Deposit Funds
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DepositTab />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

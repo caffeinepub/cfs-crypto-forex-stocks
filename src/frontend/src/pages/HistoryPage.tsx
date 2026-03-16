@@ -11,27 +11,55 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { History } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssetType } from "../backend";
 import { useCurrency } from "../hooks/useCurrency";
 import { useTradeHistory } from "../hooks/useQueries";
-
-const TAX_RATE = 0.001;
+import { type LocalTrade, loadTradeHistory } from "../utils/localData";
 
 export default function HistoryPage() {
-  const { data: history = [], isLoading } = useTradeHistory();
+  const { data: backendHistory = [], isLoading } = useTradeHistory();
   const { format } = useCurrency();
-  const [tab, setTab] = useState<"all" | AssetType>("all");
+  const [tab, setTab] = useState<"all" | string>("all");
 
-  const filtered =
-    tab === "all" ? history : history.filter((t) => t.assetType === tab);
-
-  const sorted = [...filtered].sort((a, b) =>
-    Number(b.timestamp - a.timestamp),
+  const [localHistory, setLocalHistory] = useState<LocalTrade[]>(() =>
+    loadTradeHistory(),
   );
 
-  const formatDate = (ts: bigint) => {
-    const d = new Date(Number(ts / BigInt(1_000_000)));
+  useEffect(() => {
+    const refresh = () => setLocalHistory(loadTradeHistory());
+    window.addEventListener("cfs_data_updated", refresh);
+    return () => window.removeEventListener("cfs_data_updated", refresh);
+  }, []);
+
+  // Use local history as primary; fall back to backend
+  const displayHistory: LocalTrade[] =
+    localHistory.length > 0
+      ? localHistory
+      : backendHistory.map((t) => ({
+          id: `${t.asset}-${t.timestamp}`,
+          asset: t.asset,
+          assetType: String(t.assetType),
+          side: t.tradeType === "buy" ? "buy" : "sell",
+          amountUSD: t.amount,
+          quantity: 0,
+          priceAtTrade: t.price,
+          taxAmount: 0,
+          timestamp: Number(t.timestamp / BigInt(1_000_000)),
+        }));
+
+  const filtered =
+    tab === "all"
+      ? displayHistory
+      : displayHistory.filter((t) => {
+          const typeStr = String(t.assetType).toLowerCase();
+          return typeStr === tab.toLowerCase();
+        });
+
+  const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
+
+  const formatDate = (ts: number) => {
+    const d = new Date(ts);
     return d.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -39,13 +67,17 @@ export default function HistoryPage() {
     });
   };
 
-  const formatTime = (ts: bigint) => {
-    const d = new Date(Number(ts / BigInt(1_000_000)));
+  const formatTime = (ts: number) => {
+    const d = new Date(ts);
     return d.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
+
+  const cryptoTab = String(AssetType.crypto);
+  const forexTab = String(AssetType.forex);
+  const stockTab = String(AssetType.stock);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -57,24 +89,25 @@ export default function HistoryPage() {
         <div>
           <h1 className="text-xl font-bold">Trade History</h1>
           <p className="text-xs text-muted-foreground">
-            {history.length} total trade{history.length !== 1 ? "s" : ""}
+            {displayHistory.length} total trade
+            {displayHistory.length !== 1 ? "s" : ""}
           </p>
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "all" | AssetType)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v)}>
         <TabsList
           data-ocid="history.filter.tab"
           className="bg-card border border-border"
         >
           <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value={AssetType.crypto}>Crypto</TabsTrigger>
-          <TabsTrigger value={AssetType.forex}>Forex</TabsTrigger>
-          <TabsTrigger value={AssetType.stock}>Stocks</TabsTrigger>
+          <TabsTrigger value={cryptoTab}>Crypto</TabsTrigger>
+          <TabsTrigger value={forexTab}>Forex</TabsTrigger>
+          <TabsTrigger value={stockTab}>Stocks</TabsTrigger>
         </TabsList>
 
         <TabsContent value={tab}>
-          {isLoading ? (
+          {isLoading && localHistory.length === 0 ? (
             <div className="space-y-2 mt-4" data-ocid="history.loading_state">
               {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-14 w-full" />
@@ -110,14 +143,10 @@ export default function HistoryPage() {
                 </TableHeader>
                 <TableBody>
                   {sorted.map((trade, i) => {
-                    const taxFreeCount = 7;
-                    const tradeIndex = history.length - filtered.length + i;
-                    const isTaxFree = tradeIndex < taxFreeCount;
-                    const tax = isTaxFree ? 0 : trade.amount * TAX_RATE;
-                    const isBuy = trade.tradeType === "buy";
+                    const isBuy = trade.side === "buy";
                     return (
                       <TableRow
-                        key={`${trade.asset}-${trade.timestamp}`}
+                        key={`${trade.id}-${i}`}
                         data-ocid={`history.row.item.${i + 1}`}
                         className="border-border"
                       >
@@ -143,19 +172,19 @@ export default function HistoryPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-data">
-                          ${trade.amount.toFixed(2)}
+                          ${trade.amountUSD.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right font-data text-muted-foreground">
-                          {format(trade.price)}
+                          {format(trade.priceAtTrade)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {isTaxFree ? (
-                            <span className="text-xs text-gain font-semibold">
-                              FREE
+                          {trade.taxAmount > 0 ? (
+                            <span className="font-data text-xs text-warning">
+                              ${trade.taxAmount.toFixed(4)}
                             </span>
                           ) : (
-                            <span className="font-data text-xs text-warning">
-                              ${tax.toFixed(4)}
+                            <span className="text-xs text-gain font-semibold">
+                              FREE
                             </span>
                           )}
                         </TableCell>

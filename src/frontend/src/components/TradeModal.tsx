@@ -24,6 +24,11 @@ import { Variant_buy_sell } from "../backend";
 import { type Currency, useCurrency } from "../hooks/useCurrency";
 import type { MarketAsset } from "../hooks/useMarketData";
 import { usePlaceTrade } from "../hooks/useQueries";
+import {
+  appendTrade,
+  updatePortfolioOnTrade,
+  updateWalletOnTrade,
+} from "../utils/localData";
 
 const RATES: Record<Currency, number> = { USD: 1, INR: 83, AED: 3.67 };
 const SYMBOLS: Record<Currency, string> = { USD: "$", INR: "₹", AED: "د.إ" };
@@ -92,7 +97,36 @@ export default function TradeModal({
       {
         onSuccess: () => {
           if (!isTaxFree && taxAmount > 0)
-            addTax(taxAmount, side === "buy" ? "buy" : "sell");
+            addTax(
+              taxAmount,
+              side === "buy" ? "buy" : "sell",
+              asset.name,
+              amountNum,
+            );
+
+          // Persist trade locally so data survives redeployments
+          const taxAmountUSD = taxAmount / rate;
+          updatePortfolioOnTrade(
+            asset.name,
+            String(asset.type),
+            side,
+            quantity,
+            asset.price,
+          );
+          appendTrade({
+            id: Date.now().toString(),
+            asset: asset.name,
+            assetType: String(asset.type),
+            side,
+            amountUSD,
+            quantity,
+            priceAtTrade: asset.price,
+            taxAmount: taxAmountUSD,
+            timestamp: Date.now(),
+          });
+          updateWalletOnTrade(side, amountUSD, taxAmountUSD);
+          window.dispatchEvent(new Event("cfs_data_updated"));
+
           toast.success(
             `${side === "buy" ? "Bought" : "Sold"} ${asset.name} — ${sym}${amountNum.toFixed(2)}`,
           );

@@ -11,7 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssetType, type UserProfile } from "../backend";
 import AssetDetailSheet from "../components/AssetDetailSheet";
 import TradeModal from "../components/TradeModal";
@@ -19,6 +19,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import { useFavorites } from "../hooks/useFavorites";
 import { type MarketAsset, useMarketData } from "../hooks/useMarketData";
 import { usePortfolio, useTradeHistory } from "../hooks/useQueries";
+import { loadPortfolio } from "../utils/localData";
 
 const INR_RATE = 83;
 
@@ -223,6 +224,22 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const { data: portfolio } = usePortfolio();
   const { isFavorite, favoritesCount } = useFavorites();
 
+  const [localPortfolioTotal, setLocalPortfolioTotal] = useState(() => {
+    const holdings = loadPortfolio();
+    return holdings.reduce((s, h) => s + h.quantity * h.avgPrice, 0);
+  });
+
+  useEffect(() => {
+    const refresh = () => {
+      const holdings = loadPortfolio();
+      setLocalPortfolioTotal(
+        holdings.reduce((s, h) => s + h.quantity * h.avgPrice, 0),
+      );
+    };
+    window.addEventListener("cfs_data_updated", refresh);
+    return () => window.removeEventListener("cfs_data_updated", refresh);
+  }, []);
+
   const [tradeTarget, setTradeTarget] = useState<{
     asset: MarketAsset;
     side: "buy" | "sell";
@@ -235,7 +252,9 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
   const days = trialDaysLeft(profile);
   const tradeCount = tradeHistory.length;
   const freeTradesLeft = Math.max(0, 7 - tradeCount);
-  const portfolioUSD = portfolio?.totalValue ?? 0;
+  const backendPortfolioUSD = portfolio?.totalValue ?? 0;
+  const portfolioUSD =
+    localPortfolioTotal > 0 ? localPortfolioTotal : backendPortfolioUSD;
 
   const crypto = assets.filter((a) => a.type === AssetType.crypto);
   const forex = assets.filter((a) => a.type === AssetType.forex);

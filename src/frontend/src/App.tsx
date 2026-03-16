@@ -15,6 +15,8 @@ import CurrencyConverterPage from "./pages/CurrencyConverterPage";
 import DashboardPage from "./pages/DashboardPage";
 import HistoryPage from "./pages/HistoryPage";
 import LandingPage from "./pages/LandingPage";
+import PaymentFailurePage from "./pages/PaymentFailurePage";
+import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterPage from "./pages/RegisterPage";
@@ -147,6 +149,30 @@ function AppInner() {
 }
 
 export default function App() {
+  const path = window.location.pathname;
+
+  if (path === "/payment-success") {
+    return (
+      <PaymentSuccessPage
+        onNavigate={(_pg) => {
+          window.history.pushState({}, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  if (path === "/payment-failure") {
+    return (
+      <PaymentFailurePage
+        onNavigate={(_pg) => {
+          window.history.pushState({}, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
   return (
     <CurrencyProvider>
       <MarketDataProvider>

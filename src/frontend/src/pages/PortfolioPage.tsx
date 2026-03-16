@@ -9,10 +9,12 @@ import {
 } from "@/components/ui/table";
 import { PieChart, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 import type { UserProfile } from "../backend";
 import { useCurrency } from "../hooks/useCurrency";
 import { useMarketData } from "../hooks/useMarketData";
 import { usePortfolio } from "../hooks/useQueries";
+import { type LocalHolding, loadPortfolio } from "../utils/localData";
 
 export default function PortfolioPage({
   profile: _,
@@ -21,10 +23,20 @@ export default function PortfolioPage({
   const { getPrice } = useMarketData();
   const { format } = useCurrency();
 
+  const [localHoldings, setLocalHoldings] = useState<LocalHolding[]>(() =>
+    loadPortfolio(),
+  );
+
+  useEffect(() => {
+    const refresh = () => setLocalHoldings(loadPortfolio());
+    window.addEventListener("cfs_data_updated", refresh);
+    return () => window.removeEventListener("cfs_data_updated", refresh);
+  }, []);
+
   const holdings = portfolio?.holdings ?? [];
   const backendTotal = portfolio?.totalValue ?? 0;
 
-  const enriched = holdings
+  const backendEnriched = holdings
     .map(([asset, qty]) => {
       const currentPrice = getPrice(asset);
       const currentValue = currentPrice > 0 ? qty * currentPrice : 0;
@@ -32,9 +44,27 @@ export default function PortfolioPage({
     })
     .filter((h) => h.qty > 0);
 
+  // Local holdings enriched with live prices
+  const localEnriched = localHoldings.map((h) => {
+    const livePrice = getPrice(h.asset);
+    const currentPrice = livePrice > 0 ? livePrice : h.avgPrice;
+    const currentValue = currentPrice * h.quantity;
+    return {
+      asset: h.asset,
+      qty: h.quantity,
+      currentPrice,
+      currentValue,
+      avgPrice: h.avgPrice,
+    };
+  });
+
+  // Use local holdings as primary source of truth
+  const displayHoldings =
+    localEnriched.length > 0 ? localEnriched : backendEnriched;
+
   const totalValue =
-    enriched.length > 0
-      ? enriched.reduce((s, h) => s + h.currentValue, 0)
+    displayHoldings.length > 0
+      ? displayHoldings.reduce((s, h) => s + h.currentValue, 0)
       : backendTotal;
 
   return (
@@ -62,7 +92,7 @@ export default function PortfolioPage({
         <p className="text-sm text-muted-foreground mb-1">
           Total Portfolio Value
         </p>
-        {isLoading ? (
+        {isLoading && localEnriched.length === 0 ? (
           <Skeleton className="h-9 w-40" data-ocid="portfolio.loading_state" />
         ) : (
           <p className="text-4xl font-bold font-data text-primary">
@@ -76,13 +106,13 @@ export default function PortfolioPage({
       </motion.div>
 
       {/* Holdings table */}
-      {isLoading ? (
+      {isLoading && localEnriched.length === 0 ? (
         <div className="space-y-2" data-ocid="portfolio.loading_state">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
-      ) : enriched.length === 0 ? (
+      ) : displayHoldings.length === 0 ? (
         <div
           data-ocid="portfolio.empty_state"
           className="text-center py-16 text-muted-foreground"
@@ -104,7 +134,7 @@ export default function PortfolioPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {enriched.map((h, i) => {
+              {displayHoldings.map((h, i) => {
                 const pct =
                   totalValue > 0
                     ? ((h.currentValue / totalValue) * 100).toFixed(1)

@@ -89,14 +89,10 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface PortfolioView {
-    totalValue: number;
-    holdings: Array<[string, number]>;
-}
-export interface AssetData {
-    name: string;
-    assetType: AssetType;
-    price: number;
+export interface TransformationOutput {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
 }
 export interface Trade {
     asset: string;
@@ -105,6 +101,51 @@ export interface Trade {
     assetType: AssetType;
     price: number;
     amount: number;
+}
+export interface http_header {
+    value: string;
+    name: string;
+}
+export interface http_request_result {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
+export interface ShoppingItem {
+    productName: string;
+    currency: string;
+    quantity: bigint;
+    priceInCents: bigint;
+    productDescription: string;
+}
+export interface PortfolioView {
+    totalValue: number;
+    holdings: Array<[string, number]>;
+}
+export interface TransformationInput {
+    context: Uint8Array;
+    response: http_request_result;
+}
+export interface AssetData {
+    name: string;
+    assetType: AssetType;
+    price: number;
+}
+export type StripeSessionStatus = {
+    __kind__: "completed";
+    completed: {
+        userPrincipal?: string;
+        response: string;
+    };
+} | {
+    __kind__: "failed";
+    failed: {
+        error: string;
+    };
+};
+export interface StripeConfiguration {
+    allowedCountries: Array<string>;
+    secretKey: string;
 }
 export interface UserProfile {
     age: bigint;
@@ -142,20 +183,25 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     checkTrialStatus(user: Principal): Promise<boolean>;
+    createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     getAllAssetPrices(): Promise<Array<AssetData>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getPortfolio(user: Principal): Promise<PortfolioView>;
+    getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
     getTradeHistory(user: Principal): Promise<Array<Trade>>;
-    getUserProfile(user: Principal): Promise<UserProfile>;
+    getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
+    isStripeConfigured(): Promise<boolean>;
     placeTrade(asset: string, assetType: AssetType, tradeType: Variant_buy_sell, amount: number): Promise<void>;
     registerUser(name: string, email: string, mobile: string, age: bigint, aadhaarMock: string, panMock: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setStripeConfiguration(config: StripeConfiguration): Promise<void>;
+    transform(input: TransformationInput): Promise<TransformationOutput>;
     updateAssetPrice(name: string, assetType: AssetType, price: number): Promise<void>;
     updateKYCStatus(user: Principal, status: KYCStatus): Promise<void>;
 }
-import type { AssetData as _AssetData, AssetType as _AssetType, KYCStatus as _KYCStatus, Trade as _Trade, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { AssetData as _AssetData, AssetType as _AssetType, KYCStatus as _KYCStatus, StripeSessionStatus as _StripeSessionStatus, Trade as _Trade, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -197,6 +243,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.checkTrialStatus(arg0);
+            return result;
+        }
+    }
+    async createCheckoutSession(arg0: Array<ShoppingItem>, arg1: string, arg2: string): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createCheckoutSession(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createCheckoutSession(arg0, arg1, arg2);
             return result;
         }
     }
@@ -256,32 +316,46 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getStripeSessionStatus(arg0: string): Promise<StripeSessionStatus> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getStripeSessionStatus(arg0);
+                return from_candid_StripeSessionStatus_n16(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getStripeSessionStatus(arg0);
+            return from_candid_StripeSessionStatus_n16(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getTradeHistory(arg0: Principal): Promise<Array<Trade>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getTradeHistory(arg0);
-                return from_candid_vec_n16(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n20(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getTradeHistory(arg0);
-            return from_candid_vec_n16(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n20(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getUserProfile(arg0: Principal): Promise<UserProfile> {
+    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_UserProfile_n9(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_UserProfile_n9(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n8(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -298,17 +372,31 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async placeTrade(arg0: string, arg1: AssetType, arg2: Variant_buy_sell, arg3: number): Promise<void> {
+    async isStripeConfigured(): Promise<boolean> {
         if (this.processError) {
             try {
-                const result = await this.actor.placeTrade(arg0, to_candid_AssetType_n20(this._uploadFile, this._downloadFile, arg1), to_candid_variant_n22(this._uploadFile, this._downloadFile, arg2), arg3);
+                const result = await this.actor.isStripeConfigured();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.placeTrade(arg0, to_candid_AssetType_n20(this._uploadFile, this._downloadFile, arg1), to_candid_variant_n22(this._uploadFile, this._downloadFile, arg2), arg3);
+            const result = await this.actor.isStripeConfigured();
+            return result;
+        }
+    }
+    async placeTrade(arg0: string, arg1: AssetType, arg2: Variant_buy_sell, arg3: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.placeTrade(arg0, to_candid_AssetType_n24(this._uploadFile, this._downloadFile, arg1), to_candid_variant_n26(this._uploadFile, this._downloadFile, arg2), arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.placeTrade(arg0, to_candid_AssetType_n24(this._uploadFile, this._downloadFile, arg1), to_candid_variant_n26(this._uploadFile, this._downloadFile, arg2), arg3);
             return result;
         }
     }
@@ -329,42 +417,70 @@ export class Backend implements backendInterface {
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n23(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n27(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n23(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n27(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
+    async setStripeConfiguration(arg0: StripeConfiguration): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setStripeConfiguration(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setStripeConfiguration(arg0);
+            return result;
+        }
+    }
+    async transform(arg0: TransformationInput): Promise<TransformationOutput> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.transform(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.transform(arg0);
             return result;
         }
     }
     async updateAssetPrice(arg0: string, arg1: AssetType, arg2: number): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateAssetPrice(arg0, to_candid_AssetType_n20(this._uploadFile, this._downloadFile, arg1), arg2);
+                const result = await this.actor.updateAssetPrice(arg0, to_candid_AssetType_n24(this._uploadFile, this._downloadFile, arg1), arg2);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateAssetPrice(arg0, to_candid_AssetType_n20(this._uploadFile, this._downloadFile, arg1), arg2);
+            const result = await this.actor.updateAssetPrice(arg0, to_candid_AssetType_n24(this._uploadFile, this._downloadFile, arg1), arg2);
             return result;
         }
     }
     async updateKYCStatus(arg0: Principal, arg1: KYCStatus): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateKYCStatus(arg0, to_candid_KYCStatus_n25(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.updateKYCStatus(arg0, to_candid_KYCStatus_n29(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateKYCStatus(arg0, to_candid_KYCStatus_n25(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.updateKYCStatus(arg0, to_candid_KYCStatus_n29(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
@@ -378,8 +494,11 @@ function from_candid_AssetType_n6(_uploadFile: (file: ExternalBlob) => Promise<U
 function from_candid_KYCStatus_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _KYCStatus): KYCStatus {
     return from_candid_variant_n13(_uploadFile, _downloadFile, value);
 }
-function from_candid_Trade_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Trade): Trade {
-    return from_candid_record_n18(_uploadFile, _downloadFile, value);
+function from_candid_StripeSessionStatus_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _StripeSessionStatus): StripeSessionStatus {
+    return from_candid_variant_n17(_uploadFile, _downloadFile, value);
+}
+function from_candid_Trade_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Trade): Trade {
+    return from_candid_record_n22(_uploadFile, _downloadFile, value);
 }
 function from_candid_UserProfile_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
     return from_candid_record_n10(_uploadFile, _downloadFile, value);
@@ -388,6 +507,9 @@ function from_candid_UserRole_n14(_uploadFile: (file: ExternalBlob) => Promise<U
     return from_candid_variant_n15(_uploadFile, _downloadFile, value);
 }
 function from_candid_opt_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
@@ -430,6 +552,18 @@ function from_candid_record_n10(_uploadFile: (file: ExternalBlob) => Promise<Uin
     };
 }
 function from_candid_record_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    userPrincipal: [] | [string];
+    response: string;
+}): {
+    userPrincipal?: string;
+    response: string;
+} {
+    return {
+        userPrincipal: record_opt_to_undefined(from_candid_opt_n19(_uploadFile, _downloadFile, value.userPrincipal)),
+        response: value.response
+    };
+}
+function from_candid_record_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     asset: string;
     tradeType: {
         buy: null;
@@ -450,7 +584,7 @@ function from_candid_record_n18(_uploadFile: (file: ExternalBlob) => Promise<Uin
 } {
     return {
         asset: value.asset,
-        tradeType: from_candid_variant_n19(_uploadFile, _downloadFile, value.tradeType),
+        tradeType: from_candid_variant_n23(_uploadFile, _downloadFile, value.tradeType),
         timestamp: value.timestamp,
         assetType: from_candid_AssetType_n6(_uploadFile, _downloadFile, value.assetType),
         price: value.price,
@@ -492,7 +626,36 @@ function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    completed: {
+        userPrincipal: [] | [string];
+        response: string;
+    };
+} | {
+    failed: {
+        error: string;
+    };
+}): {
+    __kind__: "completed";
+    completed: {
+        userPrincipal?: string;
+        response: string;
+    };
+} | {
+    __kind__: "failed";
+    failed: {
+        error: string;
+    };
+} {
+    return "completed" in value ? {
+        __kind__: "completed",
+        completed: from_candid_record_n18(_uploadFile, _downloadFile, value.completed)
+    } : "failed" in value ? {
+        __kind__: "failed",
+        failed: value.failed
+    } : value;
+}
+function from_candid_variant_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     buy: null;
 } | {
     sell: null;
@@ -508,25 +671,25 @@ function from_candid_variant_n7(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): AssetType {
     return "forex" in value ? AssetType.forex : "stock" in value ? AssetType.stock : "crypto" in value ? AssetType.crypto : value;
 }
-function from_candid_vec_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Trade>): Array<Trade> {
-    return value.map((x)=>from_candid_Trade_n17(_uploadFile, _downloadFile, x));
+function from_candid_vec_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Trade>): Array<Trade> {
+    return value.map((x)=>from_candid_Trade_n21(_uploadFile, _downloadFile, x));
 }
 function from_candid_vec_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_AssetData>): Array<AssetData> {
     return value.map((x)=>from_candid_AssetData_n4(_uploadFile, _downloadFile, x));
 }
-function to_candid_AssetType_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AssetType): _AssetType {
-    return to_candid_variant_n21(_uploadFile, _downloadFile, value);
+function to_candid_AssetType_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AssetType): _AssetType {
+    return to_candid_variant_n25(_uploadFile, _downloadFile, value);
 }
-function to_candid_KYCStatus_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: KYCStatus): _KYCStatus {
-    return to_candid_variant_n26(_uploadFile, _downloadFile, value);
+function to_candid_KYCStatus_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: KYCStatus): _KYCStatus {
+    return to_candid_variant_n30(_uploadFile, _downloadFile, value);
 }
-function to_candid_UserProfile_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
-    return to_candid_record_n24(_uploadFile, _downloadFile, value);
+function to_candid_UserProfile_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
+    return to_candid_record_n28(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);
 }
-function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     age: bigint;
     trialEndTime?: bigint;
     name: string;
@@ -554,7 +717,7 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         trialEndTime: value.trialEndTime ? candid_some(value.trialEndTime) : candid_none(),
         name: value.name,
         email: value.email,
-        kycStatus: to_candid_KYCStatus_n25(_uploadFile, _downloadFile, value.kycStatus),
+        kycStatus: to_candid_KYCStatus_n29(_uploadFile, _downloadFile, value.kycStatus),
         panMock: value.panMock,
         aadhaarMock: value.aadhaarMock,
         mobile: value.mobile,
@@ -577,7 +740,7 @@ function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         guest: null
     } : value;
 }
-function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AssetType): {
+function to_candid_variant_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: AssetType): {
     forex: null;
 } | {
     stock: null;
@@ -592,7 +755,7 @@ function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint
         crypto: null
     } : value;
 }
-function to_candid_variant_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Variant_buy_sell): {
+function to_candid_variant_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Variant_buy_sell): {
     buy: null;
 } | {
     sell: null;
@@ -603,7 +766,7 @@ function to_candid_variant_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint
         sell: null
     } : value;
 }
-function to_candid_variant_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: KYCStatus): {
+function to_candid_variant_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: KYCStatus): {
     verified: null;
 } | {
     pending: null;

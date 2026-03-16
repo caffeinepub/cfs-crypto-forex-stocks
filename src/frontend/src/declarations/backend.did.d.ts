@@ -26,6 +26,21 @@ export interface PortfolioView {
   'totalValue' : number,
   'holdings' : Array<[string, number]>,
 }
+export interface ShoppingItem {
+  'productName' : string,
+  'currency' : string,
+  'quantity' : bigint,
+  'priceInCents' : bigint,
+  'productDescription' : string,
+}
+export interface StripeConfiguration {
+  'allowedCountries' : Array<string>,
+  'secretKey' : string,
+}
+export type StripeSessionStatus = {
+    'completed' : { 'userPrincipal' : [] | [string], 'response' : string }
+  } |
+  { 'failed' : { 'error' : string } };
 export interface Trade {
   'asset' : string,
   'tradeType' : { 'buy' : null } |
@@ -34,6 +49,15 @@ export interface Trade {
   'assetType' : AssetType,
   'price' : number,
   'amount' : number,
+}
+export interface TransformationInput {
+  'context' : Uint8Array,
+  'response' : http_request_result,
+}
+export interface TransformationOutput {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
 }
 export interface UserProfile {
   'age' : bigint,
@@ -50,17 +74,29 @@ export interface UserProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface http_header { 'value' : string, 'name' : string }
+export interface http_request_result {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'checkTrialStatus' : ActorMethod<[Principal], boolean>,
+  'createCheckoutSession' : ActorMethod<
+    [Array<ShoppingItem>, string, string],
+    string
+  >,
   'getAllAssetPrices' : ActorMethod<[], Array<AssetData>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getPortfolio' : ActorMethod<[Principal], PortfolioView>,
+  'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getTradeHistory' : ActorMethod<[Principal], Array<Trade>>,
-  'getUserProfile' : ActorMethod<[Principal], UserProfile>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isStripeConfigured' : ActorMethod<[], boolean>,
   'placeTrade' : ActorMethod<
     [string, AssetType, { 'buy' : null } | { 'sell' : null }, number],
     undefined
@@ -70,6 +106,8 @@ export interface _SERVICE {
     undefined
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
+  'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateAssetPrice' : ActorMethod<[string, AssetType, number], undefined>,
   'updateKYCStatus' : ActorMethod<[Principal, KYCStatus], undefined>,
 }

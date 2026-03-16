@@ -1,19 +1,23 @@
-import Map "mo:core/Map";
 import List "mo:core/List";
-import Array "mo:core/Array";
+import Map "mo:core/Map";
 import Time "mo:core/Time";
-import Order "mo:core/Order";
-import Int "mo:core/Int";
-import Text "mo:core/Text";
-import Float "mo:core/Float";
-import Principal "mo:core/Principal";
-import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
+import Text "mo:core/Text";
+import Int "mo:core/Int";
+import Float "mo:core/Float";
+import Order "mo:core/Order";
+import Runtime "mo:core/Runtime";
+import Principal "mo:core/Principal";
+import Stripe "stripe/stripe";
+import OutCall "http-outcalls/outcall";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+
 actor {
   let accessControlState = AccessControl.initState();
+
   include MixinAuthorization(accessControlState);
 
   type KYCStatus = {
@@ -73,18 +77,52 @@ actor {
   let userPortfolios = Map.empty<Principal, Map.Map<Text, Float>>();
   let assetPrices = Map.empty<Text, AssetData>();
 
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
-    userProfiles.get(caller);
+  // Stripe Integration
+  var stripeConfiguration : ?Stripe.StripeConfiguration = null;
+  let stripeSessionOwners = Map.empty<Text, Principal>();
+
+  public query func isStripeConfigured() : async Bool {
+    stripeConfiguration != null;
   };
 
-  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+  public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
-    userProfiles.add(caller, profile);
+    stripeConfiguration := ?config;
+  };
+
+  func getStripeConfiguration() : Stripe.StripeConfiguration {
+    switch (stripeConfiguration) {
+      case (null) { Runtime.trap("Stripe needs to be first configured") };
+      case (?value) { value };
+    };
+  };
+
+  public query func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
+    OutCall.transform(input);
+  };
+
+  public shared ({ caller }) func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+    // Verify caller owns this session or is admin
+    switch (stripeSessionOwners.get(sessionId)) {
+      case (null) { Runtime.trap("Session not found") };
+      case (?owner) {
+        if (caller != owner and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Can only view your own payment sessions");
+        };
+      };
+    };
+    await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
+  };
+
+  public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create checkout sessions");
+    };
+    let sessionId = await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
+    stripeSessionOwners.add(sessionId, caller);
+    sessionId;
   };
 
   public shared ({ caller }) func registerUser(
@@ -221,14 +259,29 @@ actor {
     };
   };
 
-  public query ({ caller }) func getUserProfile(user : Principal) : async UserProfile {
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
+    };
+    userProfiles.get(caller);
+  };
+
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
-    switch (userProfiles.get(user)) {
-      case (null) { Runtime.trap("User not found") };
-      case (?profile) { profile };
+    userProfiles.get(user);
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
     };
+    userProfiles.add(caller, profile);
+  };
+
+  public query ({ caller }) func getAllAssetPrices() : async [AssetData] {
+    assetPrices.values().toArray();
   };
 
   public query ({ caller }) func getTradeHistory(user : Principal) : async [Trade] {
@@ -257,10 +310,6 @@ actor {
         { holdings = holdings.toArray(); totalValue = total };
       };
     };
-  };
-
-  public query ({ caller }) func getAllAssetPrices() : async [AssetData] {
-    assetPrices.values().toArray();
   };
 
   public query ({ caller }) func checkTrialStatus(user : Principal) : async Bool {

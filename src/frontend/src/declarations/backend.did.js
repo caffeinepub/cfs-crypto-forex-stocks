@@ -13,6 +13,13 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const ShoppingItem = IDL.Record({
+  'productName' : IDL.Text,
+  'currency' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'priceInCents' : IDL.Nat,
+  'productDescription' : IDL.Text,
+});
 export const AssetType = IDL.Variant({
   'forex' : IDL.Null,
   'stock' : IDL.Null,
@@ -45,6 +52,13 @@ export const PortfolioView = IDL.Record({
   'totalValue' : IDL.Float64,
   'holdings' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Float64)),
 });
+export const StripeSessionStatus = IDL.Variant({
+  'completed' : IDL.Record({
+    'userPrincipal' : IDL.Opt(IDL.Text),
+    'response' : IDL.Text,
+  }),
+  'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
 export const Trade = IDL.Record({
   'asset' : IDL.Text,
   'tradeType' : IDL.Variant({ 'buy' : IDL.Null, 'sell' : IDL.Null }),
@@ -53,18 +67,51 @@ export const Trade = IDL.Record({
   'price' : IDL.Float64,
   'amount' : IDL.Float64,
 });
+export const StripeConfiguration = IDL.Record({
+  'allowedCountries' : IDL.Vec(IDL.Text),
+  'secretKey' : IDL.Text,
+});
+export const http_header = IDL.Record({
+  'value' : IDL.Text,
+  'name' : IDL.Text,
+});
+export const http_request_result = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+export const TransformationInput = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : http_request_result,
+});
+export const TransformationOutput = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'checkTrialStatus' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+  'createCheckoutSession' : IDL.Func(
+      [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+      [IDL.Text],
+      [],
+    ),
   'getAllAssetPrices' : IDL.Func([], [IDL.Vec(AssetData)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getPortfolio' : IDL.Func([IDL.Principal], [PortfolioView], ['query']),
+  'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getTradeHistory' : IDL.Func([IDL.Principal], [IDL.Vec(Trade)], ['query']),
-  'getUserProfile' : IDL.Func([IDL.Principal], [UserProfile], ['query']),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'placeTrade' : IDL.Func(
       [
         IDL.Text,
@@ -81,6 +128,12 @@ export const idlService = IDL.Service({
       [],
     ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'transform' : IDL.Func(
+      [TransformationInput],
+      [TransformationOutput],
+      ['query'],
+    ),
   'updateAssetPrice' : IDL.Func([IDL.Text, AssetType, IDL.Float64], [], []),
   'updateKYCStatus' : IDL.Func([IDL.Principal, KYCStatus], [], []),
 });
@@ -92,6 +145,13 @@ export const idlFactory = ({ IDL }) => {
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const ShoppingItem = IDL.Record({
+    'productName' : IDL.Text,
+    'currency' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'priceInCents' : IDL.Nat,
+    'productDescription' : IDL.Text,
   });
   const AssetType = IDL.Variant({
     'forex' : IDL.Null,
@@ -125,6 +185,13 @@ export const idlFactory = ({ IDL }) => {
     'totalValue' : IDL.Float64,
     'holdings' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Float64)),
   });
+  const StripeSessionStatus = IDL.Variant({
+    'completed' : IDL.Record({
+      'userPrincipal' : IDL.Opt(IDL.Text),
+      'response' : IDL.Text,
+    }),
+    'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
   const Trade = IDL.Record({
     'asset' : IDL.Text,
     'tradeType' : IDL.Variant({ 'buy' : IDL.Null, 'sell' : IDL.Null }),
@@ -133,18 +200,48 @@ export const idlFactory = ({ IDL }) => {
     'price' : IDL.Float64,
     'amount' : IDL.Float64,
   });
+  const StripeConfiguration = IDL.Record({
+    'allowedCountries' : IDL.Vec(IDL.Text),
+    'secretKey' : IDL.Text,
+  });
+  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const http_request_result = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  const TransformationInput = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : http_request_result,
+  });
+  const TransformationOutput = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'checkTrialStatus' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+    'createCheckoutSession' : IDL.Func(
+        [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+        [IDL.Text],
+        [],
+      ),
     'getAllAssetPrices' : IDL.Func([], [IDL.Vec(AssetData)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getPortfolio' : IDL.Func([IDL.Principal], [PortfolioView], ['query']),
+    'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
     'getTradeHistory' : IDL.Func([IDL.Principal], [IDL.Vec(Trade)], ['query']),
-    'getUserProfile' : IDL.Func([IDL.Principal], [UserProfile], ['query']),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'placeTrade' : IDL.Func(
         [
           IDL.Text,
@@ -161,6 +258,12 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'transform' : IDL.Func(
+        [TransformationInput],
+        [TransformationOutput],
+        ['query'],
+      ),
     'updateAssetPrice' : IDL.Func([IDL.Text, AssetType, IDL.Float64], [], []),
     'updateKYCStatus' : IDL.Func([IDL.Principal, KYCStatus], [], []),
   });

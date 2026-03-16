@@ -86,7 +86,7 @@ export default function Layout({
           onClick={handleLogoTap}
         >
           <img
-            src="/assets/uploads/image_9e2fa18e-1.png"
+            src="/assets/uploads/image_9e2fa18e-1-1.png"
             alt="CFS"
             className="h-10 w-auto"
           />
@@ -181,7 +181,7 @@ export default function Layout({
             className="p-0 bg-transparent border-none"
           >
             <img
-              src="/assets/uploads/image_9e2fa18e-1.png"
+              src="/assets/uploads/image_9e2fa18e-1-1.png"
               alt="CFS"
               className="h-9 w-auto"
             />
