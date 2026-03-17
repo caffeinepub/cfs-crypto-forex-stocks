@@ -1,17 +1,24 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
+  CheckCircle,
   Clock,
   CreditCard,
   Fingerprint,
   Gift,
   LogOut,
   Mail,
+  MessageSquare,
   Phone,
+  Send,
   ShieldAlert,
   ShieldCheck,
   User,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import type { Page } from "../App";
 import type { UserProfile } from "../backend";
 import { KYCStatus } from "../backend";
@@ -68,6 +75,21 @@ export default function ProfilePage({
   const kycCfg =
     KYC_CONFIG[profile.kycStatus] ?? KYC_CONFIG[KYCStatus.unverified];
   const KycIcon = kycCfg.icon;
+
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [sent, setSent] = useState(false);
+
+  function handleContactSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const encodedSubject = encodeURIComponent(subject || "CFS App Support");
+    const encodedBody = encodeURIComponent(message);
+    window.location.href = `mailto:bhagansoren124@gmail.com?subject=${encodedSubject}&body=${encodedBody}`;
+    setSent(true);
+    setSubject("");
+    setMessage("");
+    setTimeout(() => setSent(false), 3000);
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-2xl">
@@ -220,6 +242,110 @@ export default function ProfilePage({
           {identity?.getPrincipal().toString() ?? "—"}
         </p>
       </div>
+
+      <div
+        className="bg-card border border-primary/20 rounded-lg p-4 flex items-center gap-3"
+        data-ocid="profile.contact.card"
+      >
+        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Mail className="w-4 h-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Contact Support</p>
+          <a
+            href="mailto:bhagansoren124@gmail.com"
+            className="text-sm font-medium text-primary hover:underline truncate block"
+          >
+            bhagansoren124@gmail.com
+          </a>
+        </div>
+      </div>
+
+      {/* Contact Form */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-card border border-border rounded-xl p-5 space-y-4"
+        data-ocid="profile.contact.panel"
+      >
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+            <MessageSquare className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Send a Message</h3>
+            <p className="text-xs text-muted-foreground">
+              We'll respond to your email
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleContactSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="contact-subject"
+              className="text-xs text-muted-foreground"
+            >
+              Subject
+            </Label>
+            <Input
+              id="contact-subject"
+              data-ocid="contact.subject.input"
+              placeholder="e.g. Trade issue, Account query..."
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              required
+              className="bg-background border-border text-sm h-9"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="contact-message"
+              className="text-xs text-muted-foreground"
+            >
+              Message
+            </Label>
+            <Textarea
+              id="contact-message"
+              data-ocid="contact.message.textarea"
+              placeholder="Describe your issue or question in detail..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              required
+              rows={4}
+              className="bg-background border-border text-sm resize-none"
+            />
+          </div>
+
+          <AnimatePresence>
+            {sent && (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="flex items-center gap-2 text-gain text-sm py-1"
+                data-ocid="contact.success_state"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Message sent via email app
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <Button
+            type="submit"
+            data-ocid="contact.submit_button"
+            className="w-full gap-2"
+            disabled={sent}
+          >
+            <Send className="w-4 h-4" />
+            Send Message
+          </Button>
+        </form>
+      </motion.div>
 
       <div className="flex gap-3">
         <Button

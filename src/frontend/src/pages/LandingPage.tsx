@@ -218,6 +218,15 @@ export default function LandingPage() {
             caffeine.ai
           </a>
         </p>
+        <p className="mt-1">
+          Contact:{" "}
+          <a
+            href="mailto:bhagansoren124@gmail.com"
+            className="text-primary hover:underline"
+          >
+            bhagansoren124@gmail.com
+          </a>
+        </p>
       </footer>
 
       <style>{`
