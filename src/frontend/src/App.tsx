@@ -15,6 +15,7 @@ import CurrencyConverterPage from "./pages/CurrencyConverterPage";
 import DashboardPage from "./pages/DashboardPage";
 import HistoryPage from "./pages/HistoryPage";
 import LandingPage from "./pages/LandingPage";
+import MarketPage from "./pages/MarketPage";
 import PaymentFailurePage from "./pages/PaymentFailurePage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import PortfolioPage from "./pages/PortfolioPage";
@@ -25,6 +26,7 @@ import { recordSessionEnd, recordSessionStart } from "./utils/sessionTracker";
 
 export type Page =
   | "dashboard"
+  | "market"
   | "portfolio"
   | "history"
   | "profile"
@@ -136,6 +138,7 @@ function AppInner() {
       onLogout={handleLogout}
     >
       {page === "dashboard" && <DashboardPage profile={profile} />}
+      {page === "market" && <MarketPage profile={profile} />}
       {page === "portfolio" && <PortfolioPage profile={profile} />}
       {page === "history" && <HistoryPage />}
       {page === "profile" && (

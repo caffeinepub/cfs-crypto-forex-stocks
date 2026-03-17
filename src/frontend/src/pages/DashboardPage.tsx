@@ -218,7 +218,7 @@ function AssetGrid({
 }
 
 export default function DashboardPage({ profile }: { profile: UserProfile }) {
-  const { assets } = useMarketData();
+  const { assets, isLive } = useMarketData();
   const { format } = useCurrency();
   const { data: tradeHistory = [] } = useTradeHistory();
   const { data: portfolio } = usePortfolio();
@@ -328,6 +328,16 @@ export default function DashboardPage({ profile }: { profile: UserProfile }) {
           <p className="text-xl font-bold font-data text-primary">
             {portfolioUSD > 0 ? format(portfolioUSD) : "—"}
           </p>
+          {isLive ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-400 bg-green-400/10 border border-green-400/20 rounded-full px-2 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              LIVE
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-full px-2 py-0.5">
+              SIM
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {days > 0 ? (

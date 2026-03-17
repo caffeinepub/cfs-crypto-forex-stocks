@@ -236,7 +236,7 @@ export default function AdminPage() {
         if (next === ADMIN_PIN) {
           setAuthenticated(true);
         } else {
-          setError("Galat Admin PIN.");
+          setError("Incorrect Admin PIN.");
           setPinInput("");
           shake();
         }
@@ -272,6 +272,9 @@ export default function AdminPage() {
       : 0;
   const activeSessions = logs.filter((l) => l.logoutTime === null).length;
 
+  // suppress unused warning for useEffect import
+  useEffect(() => {}, []);
+
   if (!authenticated) {
     return (
       <div
@@ -285,7 +288,7 @@ export default function AdminPage() {
             </div>
             <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
             <p className="text-sm text-muted-foreground text-center">
-              4-digit admin PIN enter karein
+              Enter 4-digit admin PIN
             </p>
           </div>
 
@@ -354,7 +357,7 @@ export default function AdminPage() {
             onClick={() => {
               if (pinInput === ADMIN_PIN) setAuthenticated(true);
               else {
-                setError("Galat Admin PIN.");
+                setError("Incorrect Admin PIN.");
                 setPinInput("");
                 shake();
               }
@@ -384,7 +387,7 @@ export default function AdminPage() {
               Admin Panel - Session Analytics
             </h1>
             <p className="text-xs text-muted-foreground">
-              Yeh data sirf app owner ke liye hai
+              This data is for the app owner only
             </p>
           </div>
         </div>
@@ -440,7 +443,7 @@ export default function AdminPage() {
         {/* Table */}
         {logs.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
-            Koi session data nahi mila.
+            No session data found.
           </div>
         ) : (
           <div
@@ -537,7 +540,7 @@ export default function AdminPage() {
 
         {/* Disclaimer */}
         <p className="text-center text-xs text-muted-foreground pb-4">
-          Yeh data sirf app owner ke liye hai. Kisi aur ko share na karein.
+          This data is for the app owner only. Do not share with others.
         </p>
       </div>
 
@@ -545,10 +548,10 @@ export default function AdminPage() {
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <DialogContent data-ocid="admin.clear.dialog">
           <DialogHeader>
-            <DialogTitle>Saara data delete karein?</DialogTitle>
+            <DialogTitle>Delete All Data?</DialogTitle>
             <DialogDescription>
-              Yeh action undo nahi ho sakta. Saare session logs permanently
-              delete ho jayenge.
+              This action cannot be undone. All session logs will be permanently
+              deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -564,7 +567,7 @@ export default function AdminPage() {
               onClick={handleClearAll}
               data-ocid="admin.clear.confirm_button"
             >
-              Haan, Delete Karein
+              Yes, Delete All
             </Button>
           </DialogFooter>
         </DialogContent>

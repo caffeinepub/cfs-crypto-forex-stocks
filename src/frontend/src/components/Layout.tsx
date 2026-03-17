@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeftRight,
+  BarChart2,
   ChevronDown,
   History,
   LayoutDashboard,
@@ -28,6 +29,7 @@ const NAV_ITEMS: {
   icon: React.FC<{ className?: string }>;
 }[] = [
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { page: "market", label: "Markets", icon: BarChart2 },
   { page: "portfolio", label: "Portfolio", icon: PieChart },
   { page: "history", label: "History", icon: History },
   { page: "wallet", label: "Wallet", icon: Wallet },
@@ -93,7 +95,7 @@ export default function Layout({
         </button>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.page}

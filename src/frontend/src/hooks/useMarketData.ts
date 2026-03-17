@@ -5541,20 +5541,374 @@ const SEED: MarketAsset[] = [
 interface MarketContextValue {
   assets: MarketAsset[];
   getPrice: (name: string) => number;
+  isLive: boolean;
 }
 
 const MarketContext = createContext<MarketContextValue | undefined>(undefined);
 
+const COINGECKO_IDS: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  BNB: "binancecoin",
+  SOL: "solana",
+  XRP: "ripple",
+  ADA: "cardano",
+  DOGE: "dogecoin",
+  DOT: "polkadot",
+  MATIC: "matic-network",
+  LTC: "litecoin",
+  LINK: "chainlink",
+  UNI: "uniswap",
+  AVAX: "avalanche-2",
+  ATOM: "cosmos",
+  XLM: "stellar",
+  TRX: "tron",
+  VET: "vechain",
+  FIL: "filecoin",
+  GRT: "the-graph",
+  AAVE: "aave",
+  MKR: "maker",
+  COMP: "compound-governance-token",
+  CRV: "curve-dao-token",
+  YFI: "yearn-finance",
+  SUSHI: "sushiswap",
+  "1INCH": "1inch",
+  CAKE: "pancakeswap-token",
+  RUNE: "thorchain",
+  LUNA: "terra-luna-2",
+  NEAR: "near",
+  ALGO: "algorand",
+  ICP: "internet-computer",
+  HBAR: "hedera-hashgraph",
+  EGLD: "elrond-erd-2",
+  EOS: "eos",
+  XTZ: "tezos",
+  XMR: "monero",
+  ZEC: "zcash",
+  DASH: "dash",
+  ETC: "ethereum-classic",
+  BCH: "bitcoin-cash",
+  BSV: "bitcoin-sv",
+  CHZ: "chiliz",
+  BAT: "basic-attention-token",
+  MANA: "decentraland",
+  SAND: "the-sandbox",
+  AXS: "axie-infinity",
+  GALA: "gala",
+  ENJ: "enjincoin",
+  FLOW: "flow",
+  THETA: "theta-network",
+  QNT: "quant-network",
+  FET: "fetch-ai",
+  OCEAN: "ocean-protocol",
+  LPT: "livepeer",
+  NMR: "numeraire",
+  REP: "augur",
+  LRC: "loopring",
+  SKL: "skale",
+  STORJ: "storj",
+  ANKR: "ankr",
+  WOO: "woo-network",
+  DYDX: "dydx",
+  GMX: "gmx",
+  LDO: "lido-dao",
+  RPL: "rocket-pool",
+  CVX: "convex-finance",
+  WLD: "worldcoin-wld",
+  APT: "aptos",
+  SUI: "sui",
+  SEI: "sei-network",
+  STRK: "starknet",
+  ARB: "arbitrum",
+  OP: "optimism",
+  JASMY: "jasmy",
+  ORDI: "ordinals",
+  JUP: "jupiter-ag",
+  ENA: "ethena",
+  ZK: "zksync",
+  EIGEN: "eigenlayer",
+  DOGS: "dogs-token",
+  HMSTR: "hamster-kombat",
+};
+
+const FOREX_PAIRS: Record<string, { base: string; quote: string }> = {
+  "EUR/USD": { base: "EUR", quote: "USD" },
+  "GBP/USD": { base: "GBP", quote: "USD" },
+  "USD/JPY": { base: "USD", quote: "JPY" },
+  "USD/CHF": { base: "USD", quote: "CHF" },
+  "AUD/USD": { base: "AUD", quote: "USD" },
+  "USD/CAD": { base: "USD", quote: "CAD" },
+  "NZD/USD": { base: "NZD", quote: "USD" },
+  "EUR/GBP": { base: "EUR", quote: "GBP" },
+  "EUR/JPY": { base: "EUR", quote: "JPY" },
+  "GBP/JPY": { base: "GBP", quote: "JPY" },
+  "USD/INR": { base: "USD", quote: "INR" },
+  "EUR/INR": { base: "EUR", quote: "INR" },
+  "GBP/INR": { base: "GBP", quote: "INR" },
+  "USD/SGD": { base: "USD", quote: "SGD" },
+  "USD/HKD": { base: "USD", quote: "HKD" },
+  "USD/CNY": { base: "USD", quote: "CNY" },
+  "USD/MXN": { base: "USD", quote: "MXN" },
+  "USD/BRL": { base: "USD", quote: "BRL" },
+  "USD/ZAR": { base: "USD", quote: "ZAR" },
+  "USD/TRY": { base: "USD", quote: "TRY" },
+  "USD/RUB": { base: "USD", quote: "RUB" },
+  "USD/NOK": { base: "USD", quote: "NOK" },
+  "USD/SEK": { base: "USD", quote: "SEK" },
+  "USD/DKK": { base: "USD", quote: "DKK" },
+  "USD/PLN": { base: "USD", quote: "PLN" },
+  "USD/CZK": { base: "USD", quote: "CZK" },
+  "USD/HUF": { base: "USD", quote: "HUF" },
+  "USD/ILS": { base: "USD", quote: "ILS" },
+  "USD/AED": { base: "USD", quote: "AED" },
+  "USD/SAR": { base: "USD", quote: "SAR" },
+  "USD/THB": { base: "USD", quote: "THB" },
+  "USD/MYR": { base: "USD", quote: "MYR" },
+  "USD/IDR": { base: "USD", quote: "IDR" },
+  "USD/PHP": { base: "USD", quote: "PHP" },
+  "USD/KRW": { base: "USD", quote: "KRW" },
+};
+
+// Yahoo Finance symbol mapping for stocks
+// Indian stocks use .NS suffix, indices use ^ prefix, US stocks are direct
+const YAHOO_STOCK_MAP: Record<string, { yahoo: string; isINR: boolean }> = {
+  // Indian Indices
+  NIFTY50: { yahoo: "^NSEI", isINR: true },
+  SENSEX: { yahoo: "^BSESN", isINR: true },
+  BANKNIFTY: { yahoo: "^NSEBANK", isINR: true },
+  NIFTYIT: { yahoo: "^CNXIT", isINR: true },
+  NIFTYMIDCAP: { yahoo: "^CNXMIDCAP", isINR: true },
+  NIFTYSMALLCAP: { yahoo: "^CNXSC", isINR: true },
+  NIFTYNEXT50: { yahoo: "^CNXN50", isINR: true },
+  // Large Cap Indian Stocks
+  RELIANCE: { yahoo: "RELIANCE.NS", isINR: true },
+  TCS: { yahoo: "TCS.NS", isINR: true },
+  HDFCBANK: { yahoo: "HDFCBANK.NS", isINR: true },
+  INFY: { yahoo: "INFY.NS", isINR: true },
+  HINDUNILVR: { yahoo: "HINDUNILVR.NS", isINR: true },
+  ICICIBANK: { yahoo: "ICICIBANK.NS", isINR: true },
+  SBI: { yahoo: "SBIN.NS", isINR: true },
+  BHARTIARTL: { yahoo: "BHARTIARTL.NS", isINR: true },
+  KOTAKBANK: { yahoo: "KOTAKBANK.NS", isINR: true },
+  WIPRO: { yahoo: "WIPRO.NS", isINR: true },
+  HCLTECH: { yahoo: "HCLTECH.NS", isINR: true },
+  ASIANPAINT: { yahoo: "ASIANPAINT.NS", isINR: true },
+  MARUTI: { yahoo: "MARUTI.NS", isINR: true },
+  BAJFINANCE: { yahoo: "BAJFINANCE.NS", isINR: true },
+  TATAMOTORS: { yahoo: "TATAMOTORS.NS", isINR: true },
+  TITAN: { yahoo: "TITAN.NS", isINR: true },
+  SUNPHARMA: { yahoo: "SUNPHARMA.NS", isINR: true },
+  ONGC: { yahoo: "ONGC.NS", isINR: true },
+  POWERGRID: { yahoo: "POWERGRID.NS", isINR: true },
+  NTPC: { yahoo: "NTPC.NS", isINR: true },
+  COALINDIA: { yahoo: "COALINDIA.NS", isINR: true },
+  LTIM: { yahoo: "LTIM.NS", isINR: true },
+  TECHM: { yahoo: "TECHM.NS", isINR: true },
+  AXISBANK: { yahoo: "AXISBANK.NS", isINR: true },
+  INDUSINDBK: { yahoo: "INDUSINDBK.NS", isINR: true },
+  TATASTEEL: { yahoo: "TATASTEEL.NS", isINR: true },
+  JSWSTEEL: { yahoo: "JSWSTEEL.NS", isINR: true },
+  HINDALCO: { yahoo: "HINDALCO.NS", isINR: true },
+  ULTRACEMCO: { yahoo: "ULTRACEMCO.NS", isINR: true },
+  GRASIM: { yahoo: "GRASIM.NS", isINR: true },
+  DRREDDY: { yahoo: "DRREDDY.NS", isINR: true },
+  CIPLA: { yahoo: "CIPLA.NS", isINR: true },
+  DIVISLAB: { yahoo: "DIVISLAB.NS", isINR: true },
+  APOLLOHOSP: { yahoo: "APOLLOHOSP.NS", isINR: true },
+  EICHERMOT: { yahoo: "EICHERMOT.NS", isINR: true },
+  BAJAJFINSV: { yahoo: "BAJAJFINSV.NS", isINR: true },
+  BPCL: { yahoo: "BPCL.NS", isINR: true },
+  IOC: { yahoo: "IOC.NS", isINR: true },
+  HPCL: { yahoo: "HPCL.NS", isINR: true },
+  TATAPOWER: { yahoo: "TATAPOWER.NS", isINR: true },
+  ADANIPORTS: { yahoo: "ADANIPORTS.NS", isINR: true },
+  ADANIENT: { yahoo: "ADANIENT.NS", isINR: true },
+  ADANIPOWER: { yahoo: "ADANIPOWER.NS", isINR: true },
+  ADANIGREEN: { yahoo: "ADANIGREEN.NS", isINR: true },
+  ADANITRANS: { yahoo: "ADANITRANS.NS", isINR: true },
+  NESTLEIND: { yahoo: "NESTLEIND.NS", isINR: true },
+  HDFCLIFE: { yahoo: "HDFCLIFE.NS", isINR: true },
+  SBILIFE: { yahoo: "SBILIFE.NS", isINR: true },
+  BAJAJ_AUTO: { yahoo: "BAJAJ-AUTO.NS", isINR: true },
+  HEROMOTOCO: { yahoo: "HEROMOTOCO.NS", isINR: true },
+  BRITANNIA: { yahoo: "BRITANNIA.NS", isINR: true },
+  UPL: { yahoo: "UPL.NS", isINR: true },
+  SHREECEM: { yahoo: "SHREECEM.NS", isINR: true },
+  PIDILITIND: { yahoo: "PIDILITIND.NS", isINR: true },
+  HAVELLS: { yahoo: "HAVELLS.NS", isINR: true },
+  BERGEPAINT: { yahoo: "BERGEPAINT.NS", isINR: true },
+  SAIL: { yahoo: "SAIL.NS", isINR: true },
+  NHPC: { yahoo: "NHPC.NS", isINR: true },
+  SUZLON: { yahoo: "SUZLON.NS", isINR: true },
+  YESBANK: { yahoo: "YESBANK.NS", isINR: true },
+  IDEA: { yahoo: "IDEA.NS", isINR: true },
+  MANAPPURAM: { yahoo: "MANAPPURAM.NS", isINR: true },
+  GMRINFRA: { yahoo: "GMRINFRA.NS", isINR: true },
+  SPICEJET: { yahoo: "SPICEJET.NS", isINR: true },
+  RPOWER: { yahoo: "RPOWER.NS", isINR: true },
+  JPPOWER: { yahoo: "JPPOWER.NS", isINR: true },
+  HFCL: { yahoo: "HFCL.NS", isINR: true },
+  RAILVIKAS: { yahoo: "RVNL.NS", isINR: true },
+  EQUITASBNK: { yahoo: "EQUITASBNK.NS", isINR: true },
+  // US Stocks
+  AAPL: { yahoo: "AAPL", isINR: false },
+  MSFT: { yahoo: "MSFT", isINR: false },
+  GOOGL: { yahoo: "GOOGL", isINR: false },
+  AMZN: { yahoo: "AMZN", isINR: false },
+  META: { yahoo: "META", isINR: false },
+  TSLA: { yahoo: "TSLA", isINR: false },
+  NVDA: { yahoo: "NVDA", isINR: false },
+  NFLX: { yahoo: "NFLX", isINR: false },
+  PYPL: { yahoo: "PYPL", isINR: false },
+  ADBE: { yahoo: "ADBE", isINR: false },
+  CRM: { yahoo: "CRM", isINR: false },
+  ORCL: { yahoo: "ORCL", isINR: false },
+  INTC: { yahoo: "INTC", isINR: false },
+  AMD: { yahoo: "AMD", isINR: false },
+  QCOM: { yahoo: "QCOM", isINR: false },
+  IBM: { yahoo: "IBM", isINR: false },
+  CSCO: { yahoo: "CSCO", isINR: false },
+  UBER: { yahoo: "UBER", isINR: false },
+  LYFT: { yahoo: "LYFT", isINR: false },
+  ABNB: { yahoo: "ABNB", isINR: false },
+  COIN: { yahoo: "COIN", isINR: false },
+  HOOD: { yahoo: "HOOD", isINR: false },
+  SQ: { yahoo: "SQ", isINR: false },
+  ROKU: { yahoo: "ROKU", isINR: false },
+  ZOOM: { yahoo: "ZM", isINR: false },
+  SPOT: { yahoo: "SPOT", isINR: false },
+  TWTR: { yahoo: "X", isINR: false },
+  SNAP: { yahoo: "SNAP", isINR: false },
+  PINTEREST: { yahoo: "PINS", isINR: false },
+  RBLX: { yahoo: "RBLX", isINR: false },
+  PLTR: { yahoo: "PLTR", isINR: false },
+  SOFI: { yahoo: "SOFI", isINR: false },
+  RIVN: { yahoo: "RIVN", isINR: false },
+  NIO: { yahoo: "NIO", isINR: false },
+  XPEV: { yahoo: "XPEV", isINR: false },
+  LI: { yahoo: "LI", isINR: false },
+  AI: { yahoo: "AI", isINR: false },
+  PATH: { yahoo: "PATH", isINR: false },
+  SNOW: { yahoo: "SNOW", isINR: false },
+  ZS: { yahoo: "ZS", isINR: false },
+  CRWD: { yahoo: "CRWD", isINR: false },
+  PANW: { yahoo: "PANW", isINR: false },
+  SPY: { yahoo: "SPY", isINR: false },
+  QQQ: { yahoo: "QQQ", isINR: false },
+  GLD: { yahoo: "GLD", isINR: false },
+  ROBINHOOD: { yahoo: "HOOD", isINR: false },
+};
+
 function useMarketDataInternal(): MarketContextValue {
   const [assets, setAssets] = useState<MarketAsset[]>(SEED);
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => {
+    async function fetchRealPrices() {
+      const updates: Record<string, number> = {};
+
+      // 1. Crypto via CoinGecko
+      try {
+        const ids = Object.values(COINGECKO_IDS).join(",");
+        const res = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          for (const [symbol, geckoId] of Object.entries(COINGECKO_IDS)) {
+            if (data[geckoId]?.usd) {
+              updates[symbol] = data[geckoId].usd;
+            }
+          }
+        }
+      } catch {
+        // silently fallback to simulation
+      }
+
+      // 2. Forex via Frankfurter
+      try {
+        const res = await fetch("https://api.frankfurter.app/latest?from=USD");
+        if (res.ok) {
+          const data = await res.json();
+          const rates = data.rates as Record<string, number>;
+          rates.USD = 1;
+          for (const [pairName, { base, quote }] of Object.entries(
+            FOREX_PAIRS,
+          )) {
+            const baseRate = rates[base];
+            const quoteRate = rates[quote];
+            if (baseRate && quoteRate) {
+              updates[pairName] = quoteRate / baseRate;
+            }
+          }
+        }
+      } catch {
+        // silently fallback to simulation
+      }
+
+      // 3. Stocks via Yahoo Finance
+      try {
+        const stockSymbols = Object.keys(YAHOO_STOCK_MAP);
+        // Fetch in batches of 20
+        const batchSize = 20;
+        for (let i = 0; i < stockSymbols.length; i += batchSize) {
+          const batch = stockSymbols.slice(i, i + batchSize);
+          const yahooSymbols = batch
+            .map((s) => YAHOO_STOCK_MAP[s].yahoo)
+            .join(",");
+          const res = await fetch(
+            `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(yahooSymbols)}&fields=regularMarketPrice,regularMarketChangePercent`,
+            { headers: { Accept: "application/json" } },
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const results: Array<{
+              symbol: string;
+              regularMarketPrice?: number;
+              regularMarketChangePercent?: number;
+            }> = data?.quoteResponse?.result ?? [];
+            for (const result of results) {
+              const ourSymbol = batch.find(
+                (s) => YAHOO_STOCK_MAP[s].yahoo === result.symbol,
+              );
+              if (ourSymbol && result.regularMarketPrice) {
+                const { isINR } = YAHOO_STOCK_MAP[ourSymbol];
+                // Store as-is (INR for Indian stocks, USD for US stocks)
+                updates[ourSymbol] = result.regularMarketPrice;
+                if (!isINR && result.regularMarketChangePercent !== undefined) {
+                  // Store change24h in updates as well if possible
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // silently fallback to simulation for stocks
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setIsLive(true);
+        setAssets((prev) =>
+          prev.map((a) => {
+            const newPrice = updates[a.name];
+            if (newPrice && newPrice > 0) {
+              return { ...a, prevPrice: a.price, price: newPrice };
+            }
+            return a;
+          }),
+        );
+      }
+    }
+
+    fetchRealPrices();
+    const realId = setInterval(fetchRealPrices, 30000);
+
+    const simId = setInterval(() => {
       setAssets((prev) =>
         prev.map((a) => {
-          const delta = (Math.random() - 0.5) * 0.005 * a.price;
+          const delta = (Math.random() - 0.5) * 0.001 * a.price;
           const newPrice = Math.max(0.0000001, a.price + delta);
-          const dailyDelta = (Math.random() - 0.5) * 0.08;
+          const dailyDelta = (Math.random() - 0.5) * 0.02;
           return {
             ...a,
             prevPrice: a.price,
@@ -5564,13 +5918,17 @@ function useMarketDataInternal(): MarketContextValue {
         }),
       );
     }, 3000);
-    return () => clearInterval(id);
+
+    return () => {
+      clearInterval(realId);
+      clearInterval(simId);
+    };
   }, []);
 
   const getPrice = (name: string): number =>
     assets.find((a) => a.name === name)?.price ?? 0;
 
-  return { assets, getPrice };
+  return { assets, getPrice, isLive };
 }
 
 export function MarketDataProvider({ children }: { children: ReactNode }) {

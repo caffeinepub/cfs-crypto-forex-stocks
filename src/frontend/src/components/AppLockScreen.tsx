@@ -202,7 +202,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
         recordSessionStart(userId);
         setTimeout(onUnlocked, 800);
       } else {
-        setError("PIN match nahi hua. Phir se try karein.");
+        setError("PINs do not match. Please try again.");
         setPin("");
         shake();
       }
@@ -218,7 +218,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
         recordSessionStart(userId);
         setTimeout(onUnlocked, 800);
       } else {
-        setError("PIN match nahi hua. Phir se try karein.");
+        setError("PINs do not match. Please try again.");
         setPin("");
         shake();
       }
@@ -229,7 +229,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
         recordSessionStart(userId);
         setTimeout(onUnlocked, 600);
       } else {
-        setError("Galat PIN. Phir se try karein.");
+        setError("Incorrect PIN. Please try again.");
         setPin("");
         shake();
       }
@@ -239,7 +239,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
   function handleKYCVerify() {
     setKycError("");
     if (!kycAadhaar || !kycPan) {
-      setKycError("Aadhaar aur PAN dono bharna zaroori hai.");
+      setKycError("Aadhaar and PAN are both required.");
       return;
     }
     if (verifyKYC(kycAadhaar.trim(), kycPan.trim())) {
@@ -247,7 +247,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
       setError("");
       setMode("forgot_newpin");
     } else {
-      setKycError("Aadhaar ya PAN sahi nahi hai. Phir check karein.");
+      setKycError("Aadhaar or PAN is incorrect. Please check again.");
     }
   }
 
@@ -262,7 +262,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
           recordSessionStart(userId);
           setTimeout(onUnlocked, 600);
         } else {
-          setError("Fingerprint setup nahi ho saka.");
+          setError("Fingerprint setup failed.");
         }
       } else {
         const ok = await authenticateWebAuthn();
@@ -271,7 +271,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
           recordSessionStart(userId);
           setTimeout(onUnlocked, 600);
         } else {
-          setError("Fingerprint verify nahi hua.");
+          setError("Fingerprint verification failed.");
           shake();
         }
       }
@@ -281,7 +281,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
         setBiometricRegistered(true);
         setError("");
       } else {
-        setError("Fingerprint register nahi ho saka.");
+        setError("Fingerprint registration failed.");
       }
     }
   }
@@ -305,7 +305,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             data-ocid="applock.cancel_button"
           >
-            <ChevronLeft className="w-4 h-4" /> Wapas jayein
+            <ChevronLeft className="w-4 h-4" /> Go Back
           </button>
 
           <div className="flex flex-col items-center gap-3">
@@ -314,7 +314,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
             </div>
             <h1 className="text-xl font-bold text-foreground">PIN Reset</h1>
             <p className="text-sm text-muted-foreground text-center">
-              KYC verify karke naya PIN set karein
+              Verify KYC to set a new PIN
             </p>
           </div>
 
@@ -365,12 +365,12 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
               onClick={handleKYCVerify}
               data-ocid="applock.primary_button"
             >
-              KYC Verify Karein
+              Verify KYC
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Demo: Koi bhi valid-format Aadhaar (12 digits) aur PAN
-              (AAAAA0000A) chalega
+              Demo: Any valid-format Aadhaar (12 digits) and PAN (AAAAA0000A)
+              will work
             </p>
           </div>
         </div>
@@ -380,25 +380,25 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
 
   const title =
     mode === "setup"
-      ? "6-Digit PIN Set Karein"
+      ? "Set Your 6-Digit PIN"
       : mode === "setup_confirm"
-        ? "PIN Confirm Karein"
+        ? "Confirm Your PIN"
         : mode === "forgot_newpin"
-          ? "Naya PIN Set Karein"
+          ? "Set New PIN"
           : mode === "forgot_confirm"
-            ? "Naya PIN Confirm Karein"
-            : "PIN Enter Karein";
+            ? "Confirm New PIN"
+            : "Enter Your PIN";
 
   const subtitle =
     mode === "setup"
-      ? "Apna naya 6-digit security PIN choose karein"
+      ? "Choose your new 6-digit security PIN"
       : mode === "setup_confirm"
-        ? "Dobara wahi PIN enter karein"
+        ? "Enter the same PIN again"
         : mode === "forgot_newpin"
-          ? "KYC verified! Naya 6-digit PIN daalen"
+          ? "KYC verified! Enter a new 6-digit PIN"
           : mode === "forgot_confirm"
-            ? "Confirm karne ke liye wahi PIN dobara daalen"
-            : "App open karne ke liye PIN dalein";
+            ? "Enter the same PIN again to confirm"
+            : "Enter your PIN to open the app";
 
   return (
     <div
@@ -507,7 +507,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
 
         {mode === "verify" && biometricAvailable && !biometricRegistered && (
           <p className="text-xs text-muted-foreground text-center">
-            Fingerprint icon tap karke biometric setup karein
+            Tap the fingerprint icon to set up biometrics
           </p>
         )}
 
@@ -520,7 +520,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
             data-ocid="applock.secondary_button"
           >
             <Fingerprint className="w-4 h-4" />
-            Fingerprint bhi setup karein
+            Set Up Fingerprint
           </Button>
         )}
 
@@ -537,7 +537,7 @@ export default function AppLockScreen({ userId, onUnlocked }: Props) {
             }}
             className="text-sm text-amber-500 hover:text-amber-400 underline underline-offset-2 mt-1"
           >
-            PIN bhul gaye? KYC se reset karein
+            Forgot PIN? Reset via KYC
           </button>
         )}
       </div>

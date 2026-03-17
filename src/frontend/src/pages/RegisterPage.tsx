@@ -2,17 +2,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Camera,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CreditCard,
   Loader2,
   Mail,
+  RefreshCw,
   ShieldCheck,
   User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useRegisterUser } from "../hooks/useQueries";
@@ -35,6 +37,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STEPS = [
   { label: "Personal", icon: User },
   { label: "Identity", icon: CreditCard },
+  { label: "Face Scan", icon: Camera },
   { label: "Email OTP", icon: Mail },
   { label: "Confirm", icon: ShieldCheck },
 ];
@@ -54,6 +57,72 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [otpSent, setOtpSent] = useState(false);
+
+  // Face scan state
+  const [faceImage, setFaceImage] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      for (const t of streamRef.current.getTracks()) {
+        t.stop();
+      }
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraActive(true);
+    } catch {
+      setCameraError("Camera not available. You can skip this step.");
+      setCameraActive(false);
+    }
+  };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: camera starts only when entering step 2
+  useEffect(() => {
+    if (step === 2 && !faceImage) {
+      void startCamera();
+    }
+    return () => {
+      if (streamRef.current) {
+        for (const t of streamRef.current.getTracks()) {
+          t.stop();
+        }
+        streamRef.current = null;
+      }
+      setCameraActive(false);
+    };
+  }, [step]); // intentionally omit faceImage/startCamera
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 320;
+    canvas.height = videoRef.current.videoHeight || 320;
+    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    setFaceImage(dataUrl);
+    stopCamera();
+  };
+
+  const retakePhoto = () => {
+    setFaceImage(null);
+    startCamera();
+  };
 
   const set = (field: keyof FormData, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -77,7 +146,8 @@ export default function RegisterPage() {
       if (!PAN_REGEX.test(form.pan.toUpperCase()))
         errs.pan = "Invalid PAN format (e.g. ABCDE1234F)";
     }
-    if (step === 2) {
+    // step 2 = face scan (optional, no validation required)
+    if (step === 3) {
       if (!EMAIL_REGEX.test(form.email))
         errs.email = "Enter a valid email address";
       if (otpSent && form.otp.length < 4) errs.otp = "Enter the 4-digit OTP";
@@ -88,12 +158,18 @@ export default function RegisterPage() {
 
   const handleNext = () => {
     if (!validateStep()) return;
-    if (step === 2 && !otpSent) {
+    if (step === 3 && !otpSent) {
       setOtpSent(true);
       toast.success(`OTP sent to ${form.email}`);
       return;
     }
+    if (step === 2) stopCamera();
     setStep((s) => s + 1);
+  };
+
+  const handleBack = () => {
+    if (step === 3) stopCamera();
+    setStep((s) => s - 1);
   };
 
   const handleSubmit = () => {
@@ -129,12 +205,12 @@ export default function RegisterPage() {
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center justify-between mb-8 px-2">
+        <div className="flex items-center justify-between mb-8 px-1">
           {STEPS.map((s, i) => (
             <div key={s.label} className="flex items-center">
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all ${
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
                     i < step
                       ? "bg-primary border-primary text-primary-foreground"
                       : i === step
@@ -143,21 +219,25 @@ export default function RegisterPage() {
                   }`}
                 >
                   {i < step ? (
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                   ) : (
-                    <s.icon className="w-4 h-4" />
+                    <s.icon className="w-3.5 h-3.5" />
                   )}
                 </div>
                 <span
-                  className={`text-xs mt-1 ${i === step ? "text-primary" : "text-muted-foreground"}`}
+                  className={`text-[10px] mt-1 ${
+                    i === step ? "text-primary" : "text-muted-foreground"
+                  }`}
                 >
                   {s.label}
                 </span>
               </div>
               {i < STEPS.length - 1 && (
                 <div
-                  className={`flex-1 h-0.5 mx-2 mb-4 ${i < step ? "bg-primary" : "bg-border"}`}
-                  style={{ minWidth: 24 }}
+                  className={`flex-1 h-0.5 mx-1 mb-4 ${
+                    i < step ? "bg-primary" : "bg-border"
+                  }`}
+                  style={{ minWidth: 12 }}
                 />
               )}
             </div>
@@ -311,6 +391,154 @@ export default function RegisterPage() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
+                <h2 className="text-lg font-semibold mb-1">Face Scan</h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Position your face in the frame for identity verification
+                </p>
+
+                {cameraError ? (
+                  <div
+                    className="flex flex-col items-center gap-3 py-6"
+                    data-ocid="register.face.panel"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center">
+                      <Camera className="w-7 h-7 text-destructive" />
+                    </div>
+                    <p
+                      className="text-sm text-muted-foreground text-center"
+                      data-ocid="register.error_state"
+                    >
+                      {cameraError}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleNext()}
+                      className="mt-1"
+                    >
+                      Skip Face Scan
+                    </Button>
+                  </div>
+                ) : faceImage ? (
+                  <div
+                    className="flex flex-col items-center gap-3"
+                    data-ocid="register.face.panel"
+                  >
+                    <div className="relative">
+                      <img
+                        src={faceImage}
+                        alt="Captured face"
+                        className="w-56 h-56 rounded-full object-cover border-4 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                      />
+                      <div className="absolute bottom-2 right-2 w-9 h-9 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                        <CheckCircle2 className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium text-green-400">
+                      ✓ Photo Captured
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={retakePhoto}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Retake
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    className="flex flex-col items-center gap-4"
+                    data-ocid="register.face.panel"
+                  >
+                    {/* Camera frame */}
+                    <div className="relative">
+                      {/* Oval face guide overlay */}
+                      <div
+                        className={`relative w-56 h-56 rounded-full overflow-hidden border-4 transition-all ${
+                          cameraActive
+                            ? "border-green-500 shadow-[0_0_24px_rgba(34,197,94,0.5)]"
+                            : "border-border"
+                        }`}
+                      >
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover scale-x-[-1]"
+                        />
+                        {/* Scanning animation line */}
+                        {cameraActive && (
+                          <motion.div
+                            className="absolute left-0 right-0 h-0.5 bg-green-400/70"
+                            style={{
+                              boxShadow: "0 0 8px rgba(74,222,128,0.8)",
+                            }}
+                            initial={{ top: "10%" }}
+                            animate={{ top: "90%" }}
+                            transition={{
+                              duration: 1.8,
+                              repeat: Number.POSITIVE_INFINITY,
+                              ease: "linear",
+                              repeatType: "reverse",
+                            }}
+                          />
+                        )}
+                        {/* Face guide oval overlay */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          <svg
+                            viewBox="0 0 100 100"
+                            className="w-full h-full"
+                            style={{ opacity: 0.5 }}
+                            aria-hidden="true"
+                          >
+                            <title>Face guide</title>
+                            <ellipse
+                              cx="50"
+                              cy="50"
+                              rx="32"
+                              ry="40"
+                              fill="none"
+                              stroke="rgba(74,222,128,0.8)"
+                              strokeWidth="1.5"
+                              strokeDasharray="4 3"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      {cameraActive && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse" />
+                      )}
+                    </div>
+
+                    {cameraActive ? (
+                      <Button
+                        data-ocid="register.face.button"
+                        onClick={capturePhoto}
+                        className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6"
+                      >
+                        <Camera className="w-4 h-4 mr-2" /> Capture Photo
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Starting camera...
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-4"
+              >
                 <h2 className="text-lg font-semibold mb-4">
                   Email Verification
                 </h2>
@@ -367,9 +595,9 @@ export default function RegisterPage() {
               </motion.div>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <motion.div
-                key="step3"
+                key="step4"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -384,6 +612,7 @@ export default function RegisterPage() {
                     ["Email", form.email],
                     ["Aadhaar", `XXXX XXXX ${form.aadhaar.slice(-4)}`],
                     ["PAN", form.pan],
+                    ["Face Scan", faceImage ? "✓ Captured" : "Skipped"],
                   ] as [string, string][]
                 ).map(([label, value]) => (
                   <div
@@ -391,7 +620,15 @@ export default function RegisterPage() {
                     className="flex justify-between text-sm border-b border-border/50 pb-2"
                   >
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium font-data">{value}</span>
+                    <span
+                      className={`font-medium font-data ${
+                        label === "Face Scan" && faceImage
+                          ? "text-green-400"
+                          : ""
+                      }`}
+                    >
+                      {value}
+                    </span>
                   </div>
                 ))}
                 <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-xs text-muted-foreground">
@@ -413,21 +650,24 @@ export default function RegisterPage() {
               <Button
                 data-ocid="register.cancel_button"
                 variant="outline"
-                onClick={() => setStep((s) => s - 1)}
+                onClick={handleBack}
                 className="flex-1"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Back
               </Button>
             )}
-            {step < 3 ? (
-              <Button
-                data-ocid="register.primary_button"
-                onClick={handleNext}
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-              >
-                {step === 2 && !otpSent ? "Send OTP" : "Next"}
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+            {step < 4 ? (
+              // On face scan step, only show Next if photo captured; Skip is shown inline if camera error
+              step === 2 && !faceImage && !cameraError ? null : (
+                <Button
+                  data-ocid="register.primary_button"
+                  onClick={handleNext}
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                >
+                  {step === 3 && !otpSent ? "Send OTP" : "Next"}
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )
             ) : (
               <Button
                 data-ocid="register.submit_button"
