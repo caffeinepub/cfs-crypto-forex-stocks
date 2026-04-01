@@ -5,6 +5,7 @@ import { KYCStatus } from "./backend";
 import type { UserProfile } from "./backend";
 import AppLockScreen from "./components/AppLockScreen";
 import Layout from "./components/Layout";
+import PWAInstallBanner from "./components/PWAInstallBanner";
 import { useActor } from "./hooks/useActor";
 import { CurrencyProvider } from "./hooks/useCurrency";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
@@ -180,6 +181,7 @@ export default function App() {
     <CurrencyProvider>
       <MarketDataProvider>
         <AppInner />
+        <PWAInstallBanner />
         <Toaster position="top-right" />
       </MarketDataProvider>
     </CurrencyProvider>

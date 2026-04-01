@@ -6,6 +6,7 @@ import {
   CheckCircle,
   Clock,
   CreditCard,
+  Download,
   Fingerprint,
   Gift,
   LogOut,
@@ -15,6 +16,7 @@ import {
   Send,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
   User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -22,6 +24,7 @@ import { useState } from "react";
 import type { Page } from "../App";
 import type { UserProfile } from "../backend";
 import { KYCStatus } from "../backend";
+import { usePWAInstall } from "../components/PWAInstallBanner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useTradeHistory } from "../hooks/useQueries";
 
@@ -79,6 +82,9 @@ export default function ProfilePage({
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
+  const [installMsg, setInstallMsg] = useState("");
+
+  const { canInstall, isInstalled, triggerInstall } = usePWAInstall();
 
   function handleContactSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,6 +95,24 @@ export default function ProfilePage({
     setSubject("");
     setMessage("");
     setTimeout(() => setSent(false), 3000);
+  }
+
+  async function handleInstallClick() {
+    if (isInstalled) {
+      setInstallMsg("App is already installed on your device.");
+      setTimeout(() => setInstallMsg(""), 3000);
+      return;
+    }
+    if (!canInstall) {
+      setInstallMsg("Open Chrome menu > Add to Home Screen");
+      setTimeout(() => setInstallMsg(""), 4000);
+      return;
+    }
+    const accepted = await triggerInstall();
+    if (accepted) {
+      setInstallMsg("App installed successfully!");
+      setTimeout(() => setInstallMsg(""), 3000);
+    }
   }
 
   return (
@@ -242,6 +266,55 @@ export default function ProfilePage({
           {identity?.getPrincipal().toString() ?? "—"}
         </p>
       </div>
+
+      {/* App Install Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="bg-card border border-gain/20 rounded-xl p-5"
+        data-ocid="profile.app.card"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-gain/10 border border-gain/20 flex items-center justify-center shrink-0">
+            <Smartphone className="w-4 h-4 text-gain" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Install CFS App</h3>
+            <p className="text-xs text-muted-foreground">
+              Add to Home Screen for a native app experience
+            </p>
+          </div>
+        </div>
+
+        <Button
+          onClick={handleInstallClick}
+          data-ocid="profile.app.primary_button"
+          className="w-full gap-2 bg-gain hover:bg-gain/90 text-black font-semibold"
+        >
+          <Download className="w-4 h-4" />
+          {isInstalled ? "Already Installed" : "Install App"}
+        </Button>
+
+        <AnimatePresence>
+          {installMsg && (
+            <motion.p
+              key="install-msg"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="text-xs text-muted-foreground mt-3 text-center"
+              data-ocid="profile.app.success_state"
+            >
+              {installMsg}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <p className="text-xs text-muted-foreground/60 mt-3 text-center">
+          Works on Android Chrome, Samsung Internet & Edge
+        </p>
+      </motion.div>
 
       <div
         className="bg-card border border-primary/20 rounded-lg p-4 flex items-center gap-3"
